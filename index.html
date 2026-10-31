@@ -1,517 +1,66 @@
-
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>PINOC 武侠数字人动作捕捉</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>3D人物模型加载测试</title>
 <style>
 *{box-sizing:border-box}
-html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#080d18;color:#eef6ff;font-family:Arial,"Microsoft YaHei",sans-serif}
-#app{position:fixed;inset:0;background:radial-gradient(ellipse at center,#1b2b42,#080d18 75%)}
-#scene{position:absolute;inset:0}
-#scene canvas{display:block;width:100%;height:100%}
-#hud{position:absolute;inset:0;pointer-events:none}
-.top{
- position:absolute;top:14px;left:14px;right:14px;
- display:flex;justify-content:space-between;align-items:center;gap:10px
-}
-.brand,.status,.stats{
- background:#0b1424d9;border:1px solid #34445e;
- backdrop-filter:blur(12px);border-radius:12px;padding:10px 14px
-}
-.brand b{font-size:14px;letter-spacing:1px}
-.brand small{display:block;color:#8fa4bd;font-size:10px;margin-top:4px}
-.status{font-size:11px;color:#9effb0}
-.stats{
- position:absolute;left:14px;top:82px;width:220px;
-}
-.stats h3{font-size:11px;color:#68e9ff;letter-spacing:2px;margin:0 0 12px}
-.stat{display:flex;justify-content:space-between;margin:9px 0;font-size:11px;color:#9eafc5}
-.stat b{color:white}
-#cameraBox{
- position:absolute;right:14px;bottom:82px;width:min(28vw,300px);
- aspect-ratio:4/3;border:1px solid #50617b;border-radius:13px;
- overflow:hidden;background:#101a2b;box-shadow:0 10px 35px #0009
-}
-#video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
-#skeleton{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
-.cam-label{
- position:absolute;top:7px;left:8px;background:#08111dcc;
- padding:5px 8px;border-radius:6px;font-size:10px
-}
-.controls{
- position:absolute;left:14px;bottom:14px;display:flex;gap:8px;
- flex-wrap:wrap;pointer-events:auto
-}
-button{
- border:1px solid #435570;background:#17263d;color:white;
- padding:11px 15px;border-radius:10px;font-size:12px;font-weight:bold
-}
-button.primary{background:#a3ff68;color:#10200b;border-color:#a3ff68}
-button:disabled{opacity:.4}
-#message{
- position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
- background:#091322e8;border:1px solid #435775;border-radius:14px;
- padding:20px;text-align:center;max-width:85%;line-height:1.8;
- pointer-events:none
-}
-#message b{display:block;font-size:15px;margin-bottom:8px}
-#message small{color:#a8b8cc;font-size:12px}
-#toast{
- position:absolute;bottom:90px;left:50%;transform:translateX(-50%);
- background:#1b2a40;border:1px solid #526984;border-radius:9px;
- padding:9px 14px;font-size:12px;opacity:0;transition:.2s
-}
-#toast.show{opacity:1}
-@media(max-width:650px){
- .top{top:8px;left:8px;right:8px}
- .brand{padding:8px 10px}.brand b{font-size:11px}
- .stats{top:65px;left:8px;width:155px;padding:9px}
- .stats h3{font-size:9px}.stat{font-size:10px;margin:7px 0}
- #cameraBox{right:8px;bottom:78px;width:39vw}
- .controls{left:8px;right:8px;bottom:8px;gap:6px}
- button{flex:1;padding:10px 8px;font-size:11px}
-}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#10131b;color:white;font-family:Arial}
+#viewer{width:100%;height:100%;position:absolute;inset:0}
+#status{position:fixed;z-index:10;top:15px;left:15px;padding:12px 16px;background:#202838;border-radius:10px;font-size:14px}
+#file{position:fixed;z-index:10;bottom:20px;left:15px;right:15px;color:#aaa;font-size:12px}
 </style>
 </head>
 <body>
-<div id="app">
- <div id="scene"></div>
- <div id="hud">
-  <div class="top">
-   <div class="brand">
-    <b>⚔ PINOC SCI-FI SWORDSMAN</b>
-    <small>GAUSSIAN SPLATTING · AI MOTION TRACKING</small>
-   </div>
-   <div class="status" id="status">● 正在加载人物</div>
-  </div>
-
-  <div class="stats">
-   <h3>实时动作捕捉</h3>
-   <div class="stat"><span>身体识别</span><b id="tracking">等待中</b></div>
-   <div class="stat"><span>身体倾斜</span><b id="lean">0°</b></div>
-   <div class="stat"><span>身体转向</span><b id="turn">0°</b></div>
-   <div class="stat"><span>下蹲幅度</span><b id="squat">0%</b></div>
-   <div class="stat"><span>识别帧率</span><b id="fps">--</b></div>
-  </div>
-
-  <div id="cameraBox">
-   <video id="video" autoplay muted playsinline></video>
-   <canvas id="skeleton"></canvas>
-   <div class="cam-label">CAMERA TRACKING</div>
-  </div>
-
-  <div id="message">
-   <b>PINOC 武侠数字人</b>
-   <small>正在加载 Sci-Fi Swordsman.ply<br>加载完成后启动摄像头即可捕捉动作</small>
-  </div>
-
-  <div class="controls">
-   <button class="primary" id="start">启动摄像头</button>
-   <button id="stop" disabled>停止捕捉</button>
-   <button id="reset">重置人物</button>
-  </div>
-  <div id="toast"></div>
- </div>
-</div>
+<div id="viewer"></div>
+<div id="status">正在初始化人物模型……</div>
+<div id="file">模型文件：Sci-Fi Swordsman.ply</div>
 
 <script type="module">
-import * as THREE from
- 'https://esm.sh/three@0.160.0';
-
-import {OrbitControls} from
- 'https://esm.sh/three@0.160.0/examples/jsm/controls/OrbitControls.js';
-
 import * as GaussianSplats3D from
- 'https://esm.sh/@mkkellogg/gaussian-splats-3d';
+'https://esm.sh/@mkkellogg/gaussian-splats-3d';
 
-const $=id=>document.getElementById(id);
+const status = document.getElementById('status');
 
-const scene=new THREE.Scene();
-scene.background=new THREE.Color(0x080d18);
-
-const camera=new THREE.PerspectiveCamera(
- 42,innerWidth/innerHeight,.01,100
-);
-camera.position.set(0,1.15,4.2);
-
-const renderer=new THREE.WebGLRenderer({
- antialias:true,
- alpha:false
-});
-renderer.setPixelRatio(Math.min(devicePixelRatio,1.7));
-renderer.setSize(innerWidth,innerHeight);
-renderer.outputColorSpace=THREE.SRGBColorSpace;
-$('scene').appendChild(renderer.domElement);
-
-const controls=new OrbitControls(camera,renderer.domElement);
-controls.target.set(.06,1,0);
-controls.enableDamping=true;
-controls.dampingFactor=.07;
-controls.minDistance=2;
-controls.maxDistance=8;
-
-scene.add(new THREE.HemisphereLight(0xc5e5ff,0x182238,1.2));
-
-const light=new THREE.DirectionalLight(0xffffff,1.5);
-light.position.set(3,5,4);
-scene.add(light);
-
-const grid=new THREE.GridHelper(8,32,0x30445e,0x17263b);
-grid.position.y=-.08;
-scene.add(grid);
-
-/* PINOC 高斯人物 */
-const character=new GaussianSplats3D.DropInViewer({
- gpuAcceleratedSort:true,
- sphericalHarmonicsDegree:1
-});
-
-scene.add(character);
-
-let modelLoaded=false;
-let poseLandmarker=null;
-let stream=null;
-let running=false;
-let facing='user';
-let animationFrame=0;
-let frameCount=0;
-let lastFPS=performance.now();
-
-const pose={
- x:0,
- y:0,
- z:0,
- rx:0,
- ry:0,
- rz:0,
- scaleY:1
-};
-
-const target={...pose};
-
-function setStatus(text){
- $('status').textContent='● '+text;
-}
-
-function showToast(text){
- const el=$('toast');
- el.textContent=text;
- el.classList.add('show');
- setTimeout(()=>el.classList.remove('show'),2200);
-}
-
-/* 加载 PLY */
 async function loadCharacter(){
- try{
-  await character.addSplatScenes([{
-   path:'./Sci-Fi%20Swordsman.ply',
-   format:GaussianSplats3D.SceneFormat.Ply,
-   splatAlphaRemovalThreshold:3,
-   position:[0,0,0],
-   rotation:[0,0,0,1],
-   scale:[1,1,1]
-  }],true);
+  try {
+    status.textContent = '正在加载 3D 人物模型……';
 
-  modelLoaded=true;
-  setStatus('人物加载成功');
-  $('message').innerHTML=
-   '<b>人物加载完成</b><small>点击启动摄像头<br>让人物跟随你的身体动作</small>';
- }catch(error){
-  console.error(error);
-  setStatus('人物加载失败');
-  $('message').innerHTML=
-   '<b>PLY 加载失败</b><small>请检查 PLY 文件是否与 index.html 在同一目录，<br>并使用 localhost 或 HTTPS 打开网页。</small>';
- }
+    const viewer = new GaussianSplats3D.Viewer({
+      rootElement: document.getElementById('viewer'),
+      cameraUp: [0, 1, 0],
+      initialCameraPosition: [0, 1, 4],
+      initialCameraLookAt: [0, 1, 0],
+      gpuAcceleratedSort: true,
+      sphericalHarmonicsDegree: 1,
+      sceneRevealMode: GaussianSplats3D.SceneRevealMode.Instant
+    });
+
+    await viewer.addSplatScene(
+      './Sci-Fi%20Swordsman.ply',
+      {
+        format: GaussianSplats3D.SceneFormat.Ply,
+        splatAlphaRemovalThreshold: 1,
+        showLoadingUI: true,
+        position: [0, 0, 0],
+        rotation: [0, 0, 0, 1],
+        scale: [1, 1, 1]
+      }
+    );
+
+    viewer.start();
+    status.textContent = '人物模型加载成功！';
+
+    window.characterViewer = viewer;
+
+  } catch(error) {
+    console.error('人物模型加载失败：', error);
+    status.textContent = '加载失败：' + error.message;
+  }
 }
 
 loadCharacter();
-
-/* 初始化 MediaPipe */
-async function initPose(){
- const vision=await import(
-  'https://esm.sh/@mediapipe/tasks-vision@0.10.14'
- );
-
- const fileset=await vision.FilesetResolver.forVisionTasks(
-  'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm'
- );
-
- poseLandmarker=await vision.PoseLandmarker.createFromOptions(
-  fileset,{
-   baseOptions:{
-    modelAssetPath:
-    'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task',
-    delegate:'GPU'
-   },
-   runningMode:'VIDEO',
-   numPoses:1,
-   minPoseDetectionConfidence:.55,
-   minPosePresenceConfidence:.55,
-   minTrackingConfidence:.55
-  }
- );
-}
-
-/* 绘制骨架 */
-const connections=[
- [11,12],[11,13],[13,15],[12,14],[14,16],
- [11,23],[12,24],[23,24],
- [23,25],[25,27],[24,26],[26,28]
-];
-
-function drawSkeleton(points){
- const canvas=$('skeleton');
- const video=$('video');
- const rect=video.getBoundingClientRect();
-
- canvas.width=Math.round(rect.width*devicePixelRatio);
- canvas.height=Math.round(rect.height*devicePixelRatio);
-
- const ctx=canvas.getContext('2d');
- ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);
- ctx.clearRect(0,0,rect.width,rect.height);
-
- ctx.strokeStyle='#68f5ff';
- ctx.lineWidth=2;
-
- for(const [a,b] of connections){
-  if(points[a].visibility<.35||points[b].visibility<.35)continue;
-
-  ctx.beginPath();
-  ctx.moveTo((1-points[a].x)*rect.width,points[a].y*rect.height);
-  ctx.lineTo((1-points[b].x)*rect.width,points[b].y*rect.height);
-  ctx.stroke();
- }
-
- ctx.fillStyle='#a3ff68';
- for(const p of points){
-  if(p.visibility<.35)continue;
-  ctx.beginPath();
-  ctx.arc((1-p.x)*rect.width,p.y*rect.height,3,0,Math.PI*2);
-  ctx.fill();
- }
-}
-
-/* 身体姿态分析 */
-function analyzePose(points){
- const leftShoulder=points[11];
- const rightShoulder=points[12];
- const leftHip=points[23];
- const rightHip=points[24];
- const leftKnee=points[25];
- const rightKnee=points[26];
-
- if([
-  leftShoulder,rightShoulder,leftHip,rightHip
- ].some(p=>p.visibility<.35)){
-  return;
- }
-
- const shoulderAngle=Math.atan2(
-  rightShoulder.y-leftShoulder.y,
-  rightShoulder.x-leftShoulder.x
- );
-
- const hipAngle=Math.atan2(
-  rightHip.y-leftHip.y,
-  rightHip.x-leftHip.x
- );
-
- const lean=(shoulderAngle+hipAngle)/2;
-
- const shoulderWidth=Math.abs(
-  leftShoulder.x-rightShoulder.x
- );
-
- const hipWidth=Math.abs(leftHip.x-rightHip.x);
-
- const turn=THREE.MathUtils.clamp(
-  (shoulderWidth-hipWidth)*2.2,
-  -.55,.55
- );
-
- const hipY=(leftHip.y+rightHip.y)/2;
- const kneeY=(leftKnee.y+rightKnee.y)/2;
-
- const squat=THREE.MathUtils.clamp(
-  (kneeY-hipY-.12)*2.2,
-  0,.55
- );
-
- const centerX=(
-  leftShoulder.x+rightShoulder.x+
-  leftHip.x+rightHip.x
- )/4;
-
- target.rz=-THREE.MathUtils.clamp(lean,-.65,.65);
- target.ry=turn;
- target.scaleY=1-squat*.28;
- target.x=THREE.MathUtils.clamp(
-  (.5-centerX)*.35,-.18,.18
- );
-
- $('lean').textContent=
-  Math.round(lean*180/Math.PI)+'°';
-
- $('turn').textContent=
-  Math.round(turn*180/Math.PI)+'°';
-
- $('squat').textContent=
-  Math.round(squat*100)+'%';
-
- $('tracking').textContent='已识别';
-}
-
-/* 平滑驱动人物 */
-function updateCharacter(){
- const smooth=.13;
-
- for(const key of Object.keys(target)){
-  pose[key]+=(target[key]-pose[key])*smooth;
- }
-
- character.position.set(pose.x,pose.y,pose.z);
-
- character.rotation.set(
-  pose.rx,
-  pose.ry,
-  pose.rz,
-  'XYZ'
- );
-
- character.scale.set(1,pose.scaleY,1);
-}
-
-/* 实时识别 */
-function trackingLoop(){
- if(!running)return;
-
- const video=$('video');
-
- if(video.readyState>=2&&poseLandmarker){
-  const now=performance.now();
-
-  const result=poseLandmarker.detectForVideo(video,now);
-
-  if(result.landmarks&&result.landmarks.length){
-   const points=result.landmarks[0];
-   drawSkeleton(points);
-   analyzePose(points);
-   $('message').style.display='none';
-  }else{
-   $('tracking').textContent='未检测到';
-   const c=$('skeleton').getContext('2d');
-   c.clearRect(0,0,$('skeleton').width,$('skeleton').height);
-  }
-
-  frameCount++;
-
-  if(now-lastFPS>1000){
-   $('fps').textContent=frameCount+' FPS';
-   frameCount=0;
-   lastFPS=now;
-  }
- }
-
- animationFrame=requestAnimationFrame(trackingLoop);
-}
-
-/* 摄像头 */
-async function startCamera(){
- try{
-  if(!poseLandmarker){
-   setStatus('正在加载 AI 姿态识别');
-   await initPose();
-  }
-
-  stream=await navigator.mediaDevices.getUserMedia({
-   video:{
-    facingMode:facing,
-    width:{ideal:1280},
-    height:{ideal:720}
-   },
-   audio:false
-  });
-
-  $('video').srcObject=stream;
-  await $('video').play();
-
-  running=true;
-  $('start').disabled=true;
-  $('stop').disabled=false;
-
-  setStatus('实时动作捕捉中');
-  $('message').style.display='none';
-
-  trackingLoop();
-
- }catch(error){
-  console.error(error);
-  showToast('启动失败：'+error.message);
-  setStatus('摄像头启动失败');
- }
-}
-
-function stopCamera(){
- running=false;
- cancelAnimationFrame(animationFrame);
-
- if(stream){
-  stream.getTracks().forEach(track=>track.stop());
- }
-
- stream=null;
- $('video').srcObject=null;
-
- $('start').disabled=false;
- $('stop').disabled=true;
-
- $('tracking').textContent='已停止';
- $('skeleton').getContext('2d').clearRect(
-  0,0,$('skeleton').width,$('skeleton').height
- );
-
- setStatus('已停止');
-}
-
-function resetCharacter(){
- Object.assign(pose,{
-  x:0,y:0,z:0,rx:0,ry:0,rz:0,scaleY:1
- });
-
- Object.assign(target,pose);
- character.position.set(0,0,0);
- character.rotation.set(0,0,0);
- character.scale.set(1,1,1);
-
- $('lean').textContent='0°';
- $('turn').textContent='0°';
- $('squat').textContent='0%';
-
- showToast('人物姿态已重置');
-}
-
-$('start').onclick=startCamera;
-$('stop').onclick=stopCamera;
-$('reset').onclick=resetCharacter;
-
-window.addEventListener('resize',()=>{
- camera.aspect=innerWidth/innerHeight;
- camera.updateProjectionMatrix();
- renderer.setSize(innerWidth,innerHeight);
-});
-
-function animate(){
- requestAnimationFrame(animate);
- updateCharacter();
- controls.update();
- renderer.render(scene,camera);
-}
-animate();
-
-window.addEventListener('beforeunload',stopCamera);
 </script>
 </body>
 </html>
