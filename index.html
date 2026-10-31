@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="theme-color" content="#11131b">
+<title>空中绘画钢琴 · Air Piano</title>
+<style>
+:root{--bg:#10121a;--panel:#191c27;--line:#343847;--muted:#9aa1b3;--green:#a6ff39;--pink:#ff39ce;--cyan:#5de7ff}
+*{box-sizing:border-box}html,body{margin:0;min-height:100%;background:var(--bg);color:#f4f6fb;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+body{padding:16px}.app{max-width:1500px;margin:auto}.top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}.brand{display:flex;align-items:center;gap:12px}.logo{width:42px;height:42px;border-radius:13px;background:linear-gradient(135deg,#b8ff49,#20d9c3);display:grid;place-items:center;color:#10131a;font-size:22px;font-weight:900;box-shadow:0 0 28px #a6ff3944}.brand h1{font-size:19px;margin:0}.brand p{margin:3px 0 0;color:var(--muted);font-size:12px}.status{font-size:12px;color:#c8d0df;background:#202431;border:1px solid #343a4a;padding:8px 11px;border-radius:999px}
+.layout{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:14px}.stage-card,.side-card{background:var(--panel);border:1px solid #2b3040;border-radius:17px;overflow:hidden}.stage-head{padding:13px 15px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #2c3040}.stage-head strong{font-size:14px}.stage-head span{font-size:11px;color:var(--muted)}.stage{position:relative;aspect-ratio:16/9;min-height:330px;background:radial-gradient(ellipse at 50% 45%,#252a37,#0b0d13 72%);overflow:hidden}.stage video,.stage canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}#overlay{pointer-events:none}.placeholder{position:absolute;inset:0;display:grid;place-items:center;text-align:center;padding:25px;color:#b8c0d0;background:linear-gradient(120deg,#171b27dd,#0e1119dd)}.placeholder .cam{font-size:42px;margin-bottom:12px}.placeholder b{display:block;color:#fff;margin-bottom:7px}.placeholder small{line-height:1.7;color:#a1a9ba}.stage.live .placeholder{display:none}.corner{position:absolute;z-index:3;top:12px;left:12px;padding:6px 9px;border-radius:7px;background:#0b0e16b8;border:1px solid #ffffff20;font-size:11px;color:#dbe2ee}.corner.right{left:auto;right:12px}.controls{padding:13px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;border-top:1px solid #2c3040}.btn{border:1px solid #41485a;color:#eaf0fa;background:#252a38;border-radius:10px;padding:10px 13px;font-weight:650;font-size:12px;cursor:pointer}.btn.primary{background:var(--green);color:#10140c;border-color:var(--green)}.btn.pink{border-color:#a93291;background:#3a2038;color:#ffb9ed}.btn:disabled{opacity:.4;cursor:not-allowed}.btn:active{transform:translateY(1px)}.select{background:#252a38;border:1px solid #41485a;color:#fff;padding:10px;border-radius:10px;font-size:12px}.hint{margin-left:auto;color:var(--muted);font-size:11px}.side{display:flex;flex-direction:column;gap:14px}.side-card{padding:15px}.side-card h2{font-size:13px;margin:0 0 12px}.mode-switch{display:grid;grid-template-columns:1fr 1fr;gap:6px;background:#10131b;padding:5px;border-radius:11px}.mode-switch button{border:0;background:transparent;color:#aeb6c6;padding:10px 6px;border-radius:8px;font-size:11px}.mode-switch button.active{background:#303747;color:#fff;box-shadow:inset 0 0 0 1px #51596c}.piano-wrap{display:flex;gap:10px;height:270px}.piano-labels{display:flex;flex-direction:column;justify-content:space-between;color:#8c95a9;font-size:10px;padding:4px 0}.keys{position:relative;display:flex;flex:1;border:1px solid #596071;border-radius:8px;overflow:hidden;background:#080a0f}.whitekeys{display:flex;width:100%;height:100%}.key{flex:1;background:linear-gradient(90deg,#e8ebf1,#fff 50%,#d7dce5);border-right:1px solid #aeb5c1;position:relative}.key.active{background:linear-gradient(#c8ff75,#83d92c);box-shadow:0 0 20px #a6ff39}.blackkeys{position:absolute;inset:0 0 auto 0;height:61%;display:flex;pointer-events:none}.black{position:absolute;width:7.2%;height:100%;background:linear-gradient(90deg,#080a0e,#303542 48%,#090b10);border:1px solid #050609;border-radius:0 0 5px 5px;box-shadow:0 4px 5px #0009}.black.active{background:linear-gradient(#ffb0ed,#c72ba4);box-shadow:0 0 16px #ff39ce}.legend{font-size:11px;color:var(--muted);line-height:1.7}.metric{display:grid;grid-template-columns:1fr 1fr;gap:8px}.metric div{background:#11151f;border:1px solid #2e3443;border-radius:10px;padding:10px}.metric small{display:block;color:#8e98ab;font-size:10px}.metric strong{display:block;font-size:17px;margin-top:4px}.bottom{display:flex;justify-content:space-between;gap:12px;padding:12px 2px;color:#778195;font-size:10px}.timeline{height:5px;background:#303544;border-radius:8px;margin-top:10px;overflow:hidden}.timeline>i{display:block;height:100%;width:0;background:var(--pink);transition:width .08s linear}.toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);padding:10px 15px;background:#252b39;border:1px solid #4a5367;border-radius:10px;color:#fff;font-size:12px;z-index:20;opacity:0;pointer-events:none;transition:.2s}.toast.show{opacity:1}.small-note{font-size:10px;color:#8791a5;line-height:1.65;margin-top:10px}
+@media(max-width:900px){body{padding:9px}.layout{grid-template-columns:1fr}.side{display:grid;grid-template-columns:1fr 1fr}.side-card:last-child{grid-column:1/-1}.stage{min-height:250px}.piano-wrap{height:210px}}
+@media(max-width:560px){.top{align-items:flex-start}.status{font-size:10px}.brand h1{font-size:16px}.layout{gap:9px}.stage{aspect-ratio:4/5;min-height:390px}.side{display:flex}.piano-wrap{height:190px}.hint{width:100%;margin:0}.controls .btn{flex:1}.stage-head span{max-width:55%;text-align:right}}
+</style>
+</head>
+<body>
+<div class="app">
+<header class="top"><div class="brand"><div class="logo">♫</div><div><h1>空中绘画钢琴 <span style="color:#a6ff39">AIR PIANO</span></h1><p>用手指在空气中画出你的旋律</p></div></div><div class="status" id="status">● 摄像头未启动</div></header>
+<div class="layout">
+<section class="stage-card">
+ <div class="stage-head"><strong>实时手势画布</strong><span>食指指尖 · 音高网格 · 荧光轨迹</span></div>
+ <div class="stage" id="stage">
+  <video id="video" playsinline muted></video><canvas id="overlay"></canvas>
+  <div class="placeholder" id="placeholder"><div><div class="cam">◎</div><b>准备好开始空中演奏了吗？</b><small>点击下方「启动摄像头」并允许浏览器访问摄像头。<br>请将手掌放在镜头前，伸出食指开始绘画。</small></div></div>
+  <div class="corner">AIR TRACKING · 21 LANDMARKS</div><div class="corner right" id="fps">等待画面</div>
+ </div>
+ <div class="controls">
+  <button class="btn primary" id="cameraBtn">启动摄像头</button>
+  <button class="btn" id="drawBtn">开始绘画</button>
+  <button class="btn pink" id="playBtn">▶ 播放旋律</button>
+  <button class="btn" id="stopBtn">停止</button>
+  <button class="btn" id="clearBtn">清空</button>
+  <select class="select" id="scale"><option value="C">C 大调</option><option value="G">G 大调</option><option value="A">A 小调</option><option value="pent">五声音阶</option></select>
+  <span class="hint" id="drawHint">伸出食指，在画面中移动</span>
+ </div>
+</section>
+<aside class="side">
+ <section class="side-card">
+  <h2>演奏模式</h2>
+  <div class="mode-switch"><button id="liveMode" class="active">实时演奏</button><button id="recordMode">绘画后播放</button></div>
+  <p class="legend" id="modeDesc">手指移动经过不同音高区域时，立即触发音符。抬起食指即可停止绘制。</p>
+  <div class="timeline"><i id="progress"></i></div>
+  <div class="small-note">实时模式：边移动边发声。<br>绘画模式：先记录轨迹，再点击播放。</div>
+ </section>
+ <section class="side-card">
+  <h2>竖向钢琴音域</h2>
+  <div class="piano-wrap"><div class="piano-labels"><span>C6</span><span>A5</span><span>F5</span><span>D5</span><span>C4</span><span>A3</span><span>C3</span></div><div class="keys" id="keys"><div class="whitekeys" id="whitekeys"></div><div class="blackkeys" id="blackkeys"></div></div></div>
+  <p class="legend" style="margin:10px 0 0">音高由指尖的上下位置决定：越高音越高。右侧键盘同步显示触发音符。</p>
+ </section>
+ <section class="side-card">
+  <h2>演奏数据</h2><div class="metric"><div><small>已记录音符</small><strong id="noteCount">0</strong></div><div><small>当前音符</small><strong id="currentNote">—</strong></div><div><small>识别状态</small><strong id="handState" style="font-size:13px">未检测</strong></div><div><small>演奏时长</small><strong id="duration">0.0s</strong></div></div>
+  <div style="display:flex;gap:7px;margin-top:10px"><button class="btn" id="saveBtn" style="flex:1">保存旋律</button><button class="btn" id="loadBtn" style="flex:1">载入旋律</button></div>
+  <input type="file" id="fileInput" accept=".json,application/json" hidden>
+ </section>
+</aside>
+</div>
+<div class="bottom"><span>建议使用 HTTPS 或 localhost，并允许摄像头权限。</span><span>MediaPipe Hands · Web Audio API</span></div>
+</div><div class="toast" id="toast"></div>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+<script>
+(()=> {
+const $=id=>document.getElementById(id);
+const video=$('video'), canvas=$('overlay'), ctx=canvas.getContext('2d'), stage=$('stage');
+let camera=null, hands=null, stream=null, running=false, mode='live', drawing=false, points=[], notes=[], lastNote=-1, lastTrigger=0, audio=null, playbackTimer=null, playbackStart=0, playbackIndex=0, startedAt=0, lastFrame=0, frameCount=0, fps=0;
+const pitchNames=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+const scales={C:[0,2,4,5,7,9,11],G:[0,2,4,6,7,9,11],A:[0,2,3,5,7,8,10],pent:[0,2,4,7,9]};
+const midiMin=48,midiMax=84;
+function toast(s){const t=$('toast');t.textContent=s;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2200)}
+function setStatus(s){$('status').textContent='● '+s}
+function resize(){const r=stage.getBoundingClientRect();canvas.width=Math.max(1,Math.round(r.width*devicePixelRatio));canvas.height=Math.max(1,Math.round(r.height*devicePixelRatio));ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0)}
+new ResizeObserver(resize).observe(stage);resize();
+function initKeys(){const white=$('whitekeys'),black=$('blackkeys');white.innerHTML='';black.innerHTML='';for(let i=0;i<22;i++){let k=document.createElement('div');k.className='key';k.dataset.midi=48+i*2;white.appendChild(k)}[1,3,6,8,10,13,15,18,20].forEach((n)=>{let b=document.createElement('div');b.className='black';b.style.left=(n/22*100-3.6)+'%';b.dataset.midi=49+(n-1)*2;black.appendChild(b)})}
+initKeys();
+function ensureAudio(){if(!audio){const AC=window.AudioContext||window.webkitAudioContext;if(!AC)throw Error('当前浏览器不支持 Web Audio');audio=new AC()}if(audio.state==='suspended')audio.resume();return audio}
+function midiFreq(n){return 440*Math.pow(2,(n-69)/12)}
+function playNote(midi,velocity=.18,duration=.42){const ac=ensureAudio(),osc=ac.createOscillator(),gain=ac.createGain(),filter=ac.createBiquadFilter();osc.type='triangle';osc.frequency.value=midiFreq(midi);filter.type='lowpass';filter.frequency.value=2600;gain.gain.setValueAtTime(.0001,ac.currentTime);gain.gain.exponentialRampToValueAtTime(velocity,ac.currentTime+.018);gain.gain.exponentialRampToValueAtTime(.0001,ac.currentTime+duration);osc.connect(filter);filter.connect(gain);gain.connect(ac.destination);osc.start();osc.stop(ac.currentTime+duration+.03);highlight(midi);$('currentNote').textContent=noteName(midi)}
+function noteName(m){return pitchNames[m%12]+(Math.floor(m/12)-1)}
+function highlight(m){document.querySelectorAll('.key,.black').forEach(k=>k.classList.toggle('active',Number(k.dataset.midi)===m));setTimeout(()=>document.querySelectorAll('.key,.black').forEach(k=>k.classList.remove('active')),230)}
+function quantize(m){const allowed=scales[$('scale').value]||scales.C;let best=m;let dist=99;for(let x=midiMin;x<=midiMax;x++){if(allowed.includes(x%12)&&Math.abs(x-m)<dist){best=x;dist=Math.abs(x-m)}}return best}
+function pointToNote(x,y){const h=stage.clientHeight;let raw=Math.round(midiMax-(y/h)*(midiMax-midiMin));return quantize(Math.max(midiMin,Math.min(midiMax,raw)))}
+function triggerAt(x,y,t){const m=pointToNote(x,y);if(m!==lastNote||t-lastTrigger>360){playNote(m);lastNote=m;lastTrigger=t;notes.push({time:t-startedAt,midi:m,x,y});$('noteCount').textContent=notes.length}}
+function drawGrid(w,h){ctx.save();ctx.lineWidth=1;for(let i=0;i<=12;i++){let y=h*i/12;ctx.strokeStyle=i%3===0?'rgba(210,225,255,.22)':'rgba(210,225,255,.09)';ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke()}ctx.fillStyle='rgba(225,235,255,.65)';ctx.font='10px sans-serif';for(let i=0;i<=12;i+=2){let midi=midiMax-Math.round(i/12*(midiMax-midiMin));ctx.fillText(noteName(midi),8,h*i/12+12)}}
+function drawTrail(){const w=stage.clientWidth,h=stage.clientHeight;ctx.clearRect(0,0,w,h);drawGrid(w,h);
+ if(points.length>1){ctx.save();ctx.lineCap='round';ctx.lineJoin='round';ctx.shadowColor='#a6ff39';ctx.shadowBlur=15;ctx.strokeStyle='#9dff31';ctx.lineWidth=5;ctx.beginPath();points.forEach((p,i)=>{if(i===0)ctx.moveTo(p.x,p.y);else ctx.lineTo(p.x,p.y)});ctx.stroke();ctx.shadowBlur=3;ctx.strokeStyle='#efffcf';ctx.lineWidth=1.6;ctx.stroke();let p=points[points.length-1];ctx.fillStyle='#dfff9a';ctx.beginPath();ctx.arc(p.x,p.y,4,0,Math.PI*2);ctx.fill();ctx.restore()}
+ // playback cursor
+ if(playbackTimer){let x=(performance.now()-playbackStart)/Math.max(1,notes.length?notes[notes.length-1].time:1)*w;ctx.strokeStyle='#ff39ce';ctx.shadowColor='#ff39ce';ctx.shadowBlur=12;ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(Math.min(w,x),0);ctx.lineTo(Math.min(w,x),h);ctx.stroke();ctx.shadowBlur=0}
+}
+function onResults(results){const now=performance.now(),w=stage.clientWidth,h=stage.clientHeight;frameCount++;if(now-lastFrame>1000){fps=frameCount;frameCount=0;lastFrame=now;$('fps').textContent=fps+' FPS'}$('handState').textContent=results.multiHandLandmarks?.length?'已识别':'未检测';
+ if(results.multiHandLandmarks&&results.multiHandLandmarks.length){const lm=results.multiHandLandmarks[0],tip=lm[8],pip=lm[6],mcp=lm[5],indexUp=tip.y<pip.y-.015;const x=tip.x*w,y=tip.y*h; // canvas and video are both mirrored by CSS
+ if(indexUp){if(drawing||mode==='live'){if(!drawing){drawing=true;startedAt=performance.now();lastNote=-1}points.push({x,y,t:now});if(points.length>1600)points.shift();if(mode==='live')triggerAt(x,y,now);else {const m=pointToNote(x,y);if(m!==lastNote||now-lastTrigger>220){notes.push({time:now-startedAt,midi:m,x,y});lastNote=m;lastTrigger=now;$('noteCount').textContent=notes.length;$('currentNote').textContent=noteName(m)}}} }else{if(drawing){drawing=false;$('drawHint').textContent='轨迹已记录，可播放'}lastNote=-1}
+ }else{if(drawing){drawing=false;lastNote=-1}}
+ drawTrail();
+}
+async function startCamera(){try{if(!navigator.mediaDevices?.getUserMedia)throw Error('浏览器不支持摄像头，或当前网页不是 HTTPS');stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:{ideal:1280},height:{ideal:720}},audio:false});video.srcObject=stream;await video.play();if(!window.Hands)throw Error('手部识别组件加载失败，请检查网络后刷新页面');hands=new Hands({locateFile:(f)=>`https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`});hands.setOptions({maxNumHands:2,modelComplexity:1,minDetectionConfidence:.65,minTrackingConfidence:.6});hands.onResults(onResults);running=true;stage.classList.add('live');setStatus('摄像头运行中');$('cameraBtn').textContent='关闭摄像头';async function loop(){if(!running)return;if(video.readyState>=2){try{await hands.send({image:video})}catch(e){console.warn(e)}}requestAnimationFrame(loop)}loop();toast('摄像头已启动，请伸出食指')}catch(e){toast(e.message||'摄像头启动失败');setStatus('启动失败');console.error(e)}}
+function stopCamera(){running=false;if(stream)stream.getTracks().forEach(t=>t.stop());stream=null;video.srcObject=null;if(hands){hands.close();hands=null}stage.classList.remove('live');$('cameraBtn').textContent='启动摄像头';setStatus('摄像头已关闭')}
+$('cameraBtn').onclick=()=>running?stopCamera():startCamera();
+$('liveMode').onclick=()=>setMode('live');$('recordMode').onclick=()=>setMode('record');
+function setMode(m){mode=m;$('liveMode').classList.toggle('active',m==='live');$('recordMode').classList.toggle('active',m==='record');$('modeDesc').textContent=m==='live'?'手指移动经过不同音高区域时，立即触发音符。抬起食指即可停止绘制。':'伸出食指画出旋律，松开手指结束记录，再点击「播放旋律」。';$('drawBtn').textContent=m==='live'?'实时演奏已就绪':'开始绘画'}
+$('drawBtn').onclick=()=>{if(mode==='live'){toast('实时模式已就绪，请在摄像头前伸出食指');return}drawing=!drawing;if(drawing){startedAt=performance.now();points=[];notes=[];$('noteCount').textContent='0';$('drawHint').textContent='正在记录…'}else{$('drawHint').textContent='记录结束，可点击播放'}};
+function stopPlayback(){if(playbackTimer){clearInterval(playbackTimer);playbackTimer=null} $('progress').style.width='0%'}
+function playRecorded(){if(!notes.length){toast('还没有记录音符，请先绘画');return}stopPlayback();try{ensureAudio()}catch(e){toast(e.message);return}playbackStart=performance.now();playbackIndex=0;let total=Math.max(1,notes[notes.length-1].time);playbackTimer=setInterval(()=>{let t=performance.now()-playbackStart;while(playbackIndex<notes.length&&notes[playbackIndex].time<=t){playNote(notes[playbackIndex].midi,.2,.38);playbackIndex++}$('progress').style.width=Math.min(100,t/total*100)+'%';if(t>total+450){stopPlayback();}},16)}
+$('playBtn').onclick=playRecorded;$('stopBtn').onclick=()=>{stopPlayback();drawing=false;lastNote=-1};
+$('clearBtn').onclick=()=>{stopPlayback();points=[];notes=[];drawing=false;$('noteCount').textContent='0';$('currentNote').textContent='—';$('drawHint').textContent='伸出食指，在画面中移动';drawTrail();toast('已清空轨迹和旋律')};
+$('saveBtn').onclick=()=>{if(!notes.length){toast('没有可保存的旋律');return}const blob=new Blob([JSON.stringify({version:1,notes,points,scale:$('scale').value},null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='air-piano-melody.json';a.click();URL.revokeObjectURL(a.href);toast('旋律文件已导出')};
+$('loadBtn').onclick=()=>$('fileInput').click();$('fileInput').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const data=JSON.parse(await f.text());if(!Array.isArray(data.notes)||!Array.isArray(data.points))throw Error('文件格式不正确');notes=data.notes;points=data.points;$('scale').value=data.scale||'C';$('noteCount').textContent=notes.length;drawTrail();toast('旋律载入成功')}catch(err){toast('载入失败：'+err.message)}e.target.value=''};
+$('scale').onchange=()=>{toast('音阶已切换：'+$('scale').selectedOptions[0].textContent)};
+window.addEventListener('resize',()=>{resize();drawTrail()});drawTrail();
+})();
+</script>
+</body></html>
