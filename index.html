@@ -1,58 +1,68 @@
-
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>内置3D武侠人物动作捕捉</title>
+<title>AI人体测量与3D人物生成</title>
 <style>
 *{box-sizing:border-box}
-body{margin:0;background:#080d17;color:#fff;font-family:Arial,sans-serif;overflow:hidden}
+body{
+ margin:0;background:#08111e;color:#fff;
+ font-family:Arial,sans-serif;overflow:hidden
+}
 #app{height:100dvh;width:100%;position:relative}
 #scene{position:absolute;inset:0}
-#top{
+#header{
  position:absolute;top:12px;left:12px;right:12px;
  z-index:5;display:flex;justify-content:space-between;
- align-items:center;pointer-events:none
+ gap:8px;align-items:flex-start;pointer-events:none
 }
 .panel{
- background:#111c2cdd;border:1px solid #34445b;
- border-radius:12px;padding:10px 13px;
+ background:#101d2ee8;border:1px solid #334b68;
+ border-radius:12px;padding:11px 13px;
  backdrop-filter:blur(12px)
 }
-#status{font-size:12px;color:#9bc8ff}
 #title{font-size:15px;font-weight:bold}
-#cameraBox{
- position:absolute;right:12px;bottom:82px;
- width:min(32vw,180px);aspect-ratio:4/3;
- border:1px solid #627a9c;border-radius:12px;
- overflow:hidden;background:#111c2c;z-index:4
+#status{font-size:11px;color:#8fc7ff;margin-top:6px}
+#measure{
+ position:absolute;top:85px;left:12px;z-index:5;
+ width:150px;font-size:11px;line-height:1.9;
+ color:#c7d7e9;pointer-events:none
 }
-#video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
+#cameraBox{
+ position:absolute;right:12px;bottom:85px;
+ width:min(34vw,190px);aspect-ratio:4/3;
+ border:1px solid #58708e;border-radius:12px;
+ overflow:hidden;background:#111d2b;z-index:4
+}
+#video{
+ width:100%;height:100%;object-fit:cover;
+ transform:scaleX(-1)
+}
 #skeleton{
  position:absolute;inset:0;width:100%;height:100%;
  transform:scaleX(-1);pointer-events:none
 }
-#controls{
- position:absolute;bottom:12px;left:12px;right:12px;
- display:flex;gap:8px;justify-content:center;z-index:6
+#buttons{
+ position:absolute;bottom:12px;left:10px;right:10px;
+ display:flex;justify-content:center;gap:7px;z-index:6
 }
 button{
  border:1px solid #405675;border-radius:10px;
- background:#17263b;color:white;padding:12px 15px;
- font-size:13px
+ background:#172b45;color:white;padding:12px 13px;
+ font-size:12px
 }
 button.primary{background:#176bd3;border-color:#388fff}
 #hint{
- position:absolute;left:12px;bottom:78px;
- z-index:3;font-size:11px;color:#9aabc1;
- max-width:50%
+ position:absolute;bottom:88px;left:12px;
+ z-index:3;color:#9db1ca;font-size:11px;
+ max-width:48%
 }
-#stats{font-size:11px;line-height:1.8;color:#a9bfdc}
 @media(max-width:600px){
- #cameraBox{width:120px;bottom:78px}
- #hint{max-width:48%;font-size:10px}
- button{padding:11px 10px;font-size:12px}
+ #measure{top:82px;width:125px;font-size:10px}
+ #cameraBox{width:125px;bottom:85px}
+ button{padding:11px 9px;font-size:11px}
+ #hint{font-size:10px}
 }
 </style>
 </head>
@@ -60,28 +70,39 @@ button.primary{background:#176bd3;border-color:#388fff}
 <div id="app">
  <div id="scene"></div>
 
- <div id="top">
+ <div id="header">
   <div class="panel">
-   <div id="title">⚔️ 武侠人物动作捕捉</div>
-   <div id="status">正在初始化 3D 场景</div>
+   <div id="title">⚔️ AI人体测量 · 3D人物生成</div>
+   <div id="status">正在初始化……</div>
   </div>
-  <div class="panel" id="stats">
-   人物：内置生成<br>
-   引擎：Three.js
+  <div class="panel" style="font-size:11px">
+   Three.js<br>Procedural Character
   </div>
  </div>
 
- <div id="hint">点击启动摄像头，让人物跟随你的身体动作。</div>
+ <div id="measure" class="panel">
+  <b>身体测量数据</b><br>
+  肩宽：等待识别<br>
+  躯干：等待识别<br>
+  上臂：等待识别<br>
+  前臂：等待识别<br>
+  大腿：等待识别<br>
+  小腿：等待识别<br>
+  身高比例：等待识别
+ </div>
+
+ <div id="hint">请站在摄像头前，尽量让头部、双手和双脚都出现在画面中。</div>
 
  <div id="cameraBox">
   <video id="video" autoplay playsinline muted></video>
   <canvas id="skeleton"></canvas>
  </div>
 
- <div id="controls">
+ <div id="buttons">
   <button class="primary" id="start">启动摄像头</button>
   <button id="stop">停止</button>
   <button id="reset">重置人物</button>
+  <button id="rebuild">重新测量</button>
  </div>
 </div>
 
@@ -89,524 +110,598 @@ button.primary{background:#176bd3;border-color:#388fff}
 import * as THREE from
 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
 
-import {PoseLandmarker,FilesetResolver}
-from 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14';
+import {
+ PoseLandmarker,FilesetResolver
+} from
+'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14';
 
 const $=id=>document.getElementById(id);
-const sceneBox=$('scene');
+const status=$('status');
 const video=$('video');
 const canvas=$('skeleton');
 const ctx=canvas.getContext('2d');
-const status=$('status');
 
 let scene,camera,renderer,character;
-let poseLandmarker=null,stream=null;
-let running=false,lastVideoTime=-1;
-let animationFrame=0;
-const clock=new THREE.Clock();
+let landmarker=null,stream=null;
+let running=false,raf=0,lastTime=-1;
+let currentPose=null;
+let calibrated=false;
+let proportions=null;
+let lastMeasureTime=0;
 
-const mat=(color,metalness=0,roughness=.7)=>{
+const V=(x=0,y=0,z=0)=>new THREE.Vector3(x,y,z);
+
+const colors={
+ skin:0xe8bd9c,
+ hair:0x11131c,
+ robe:0x172d49,
+ robe2:0x263f61,
+ armor:0x45617e,
+ gold:0xc7a05c,
+ pants:0x111c2b,
+ boot:0x33271e,
+ sword:0xc9d7e5
+};
+
+function material(color,metalness=0,roughness=.7){
  return new THREE.MeshStandardMaterial({
   color,metalness,roughness
  });
-};
+}
 
-const materials={
- skin:mat(0xe6b995),
- dark:mat(0x101a2b),
- cloth:mat(0x172e4b),
- blue:mat(0x244d76),
- gold:mat(0xc69b4b,.7,.3),
- silver:mat(0x9eb4c8,.7,.3),
- hair:mat(0x101018),
- leather:mat(0x38291e),
- black:mat(0x080d15)
+const mats={
+ skin:material(colors.skin),
+ hair:material(colors.hair),
+ robe:material(colors.robe),
+ robe2:material(colors.robe2),
+ armor:material(colors.armor,.5,.4),
+ gold:material(colors.gold,.7,.3),
+ pants:material(colors.pants),
+ boot:material(colors.boot),
+ sword:material(colors.sword,.9,.2)
 };
 
 function initScene(){
  scene=new THREE.Scene();
- scene.background=new THREE.Color(0x080e19);
- scene.fog=new THREE.Fog(0x080e19,9,22);
+ scene.background=new THREE.Color(0x08111e);
+ scene.fog=new THREE.Fog(0x08111e,10,25);
 
  camera=new THREE.PerspectiveCamera(
-  38,innerWidth/innerHeight,.1,100
+  36,innerWidth/innerHeight,.1,100
  );
- camera.position.set(0,2.6,8);
- camera.lookAt(0,1.35,0);
+ camera.position.set(0,2.2,9);
+ camera.lookAt(0,1.65,0);
 
- renderer=new THREE.WebGLRenderer({
-  antialias:true,alpha:false
- });
+ renderer=new THREE.WebGLRenderer({antialias:true});
  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
  renderer.setSize(innerWidth,innerHeight);
  renderer.shadowMap.enabled=true;
  renderer.shadowMap.type=THREE.PCFSoftShadowMap;
  renderer.outputColorSpace=THREE.SRGBColorSpace;
  renderer.toneMapping=THREE.ACESFilmicToneMapping;
- renderer.toneMappingExposure=1.25;
- sceneBox.appendChild(renderer.domElement);
+ renderer.toneMappingExposure=1.2;
+ $('scene').appendChild(renderer.domElement);
 
- scene.add(new THREE.HemisphereLight(0xbcdcff,0x1b1825,2));
+ scene.add(new THREE.HemisphereLight(0xc9e5ff,0x242031,2));
 
- const key=new THREE.DirectionalLight(0xffe3be,3);
- key.position.set(4,7,5);
- key.castShadow=true;
- scene.add(key);
+ const light=new THREE.DirectionalLight(0xffe2bd,3);
+ light.position.set(4,8,5);
+ light.castShadow=true;
+ scene.add(light);
 
- const rim=new THREE.DirectionalLight(0x4d91ff,2.5);
- rim.position.set(-4,4,-4);
+ const rim=new THREE.DirectionalLight(0x4c8dff,2);
+ rim.position.set(-5,4,-4);
  scene.add(rim);
 
  const floor=new THREE.Mesh(
   new THREE.CircleGeometry(5,64),
-  mat(0x172337,.2,.8)
+  material(0x1b2b40,.2,.8)
  );
  floor.rotation.x=-Math.PI/2;
- floor.position.y=-.04;
+ floor.position.y=-.03;
  floor.receiveShadow=true;
  scene.add(floor);
 
- const grid=new THREE.GridHelper(12,24,0x35506d,0x1b2b40);
- grid.position.y=-.025;
+ const grid=new THREE.GridHelper(12,24,0x34516e,0x1c2e45);
+ grid.position.y=-.02;
  scene.add(grid);
 
  const ring=new THREE.Mesh(
-  new THREE.TorusGeometry(1.1,.012,8,80),
-  mat(0x478bd1,.6,.4)
+  new THREE.TorusGeometry(1.15,.012,8,80),
+  mats.gold
  );
  ring.rotation.x=Math.PI/2;
- ring.position.y=.01;
+ ring.position.y=.005;
  scene.add(ring);
 
- character=createCharacter();
+ // 先生成默认人物，识别成功后自动调整比例
+ character=buildCharacter({
+  height:3.6,
+  shoulder:.48,
+  hip:.34,
+  torso:.82,
+  upperArm:.43,
+  forearm:.40,
+  thigh:.52,
+  shin:.49,
+  head:.23
+ });
  scene.add(character);
 }
 
-function sphere(parent,name,radius,material,pos){
- const mesh=new THREE.Mesh(
-  new THREE.SphereGeometry(radius,20,16),material
- );
- mesh.name=name;
- mesh.position.set(...pos);
- mesh.castShadow=true;
- mesh.receiveShadow=true;
- parent.add(mesh);
- return mesh;
+function mesh(parent,geo,mat,name){
+ const m=new THREE.Mesh(geo,mat);
+ m.name=name;
+ m.castShadow=true;
+ m.receiveShadow=true;
+ parent.add(m);
+ return m;
 }
 
-function box(parent,name,size,material,pos){
- const mesh=new THREE.Mesh(
-  new THREE.BoxGeometry(...size),material
- );
- mesh.name=name;
- mesh.position.set(...pos);
- mesh.castShadow=true;
- mesh.receiveShadow=true;
- parent.add(mesh);
- return mesh;
+function ball(parent,name,r,mat){
+ return mesh(parent,new THREE.SphereGeometry(r,20,16),mat,name);
 }
 
-function cylinder(parent,name,r1,r2,height,material,pos){
- const mesh=new THREE.Mesh(
-  new THREE.CylinderGeometry(r1,r2,height,16),
-  material
- );
- mesh.name=name;
- mesh.position.set(...pos);
- mesh.castShadow=true;
- parent.add(mesh);
- return mesh;
+function bone(parent,name,r1,r2,mat){
+ return mesh(parent,new THREE.CylinderGeometry(r2,r1,1,16),mat,name);
 }
 
-function segment(parent,name,radius,material){
- const mesh=new THREE.Mesh(
-  new THREE.CylinderGeometry(radius*.78,radius,1,12),
-  material
- );
- mesh.name=name;
- mesh.castShadow=true;
- parent.add(mesh);
- return mesh;
+function box(parent,name,x,y,z,mat){
+ return mesh(parent,new THREE.BoxGeometry(x,y,z),mat,name);
 }
 
-function between(mesh,a,b){
- const start=new THREE.Vector3(...a);
- const end=new THREE.Vector3(...b);
- const diff=end.clone().sub(start);
- mesh.position.copy(start).add(end).multiplyScalar(.5);
- mesh.scale.set(1,diff.length(),1);
- mesh.quaternion.setFromUnitVectors(
-  new THREE.Vector3(0,1,0),diff.normalize()
+function connect(obj,a,b,rx=1,rz=1){
+ const av=V(...a),bv=V(...b);
+ const d=bv.clone().sub(av);
+ obj.position.copy(av).add(bv).multiplyScalar(.5);
+ obj.scale.set(rx,d.length(),rz);
+ obj.quaternion.setFromUnitVectors(
+  V(0,1,0),d.clone().normalize()
  );
 }
 
-function createCharacter(){
+function buildCharacter(p){
  const root=new THREE.Group();
- root.name='WuxiaCharacter';
+ root.name='GeneratedWuxiaCharacter';
 
- // 身体根节点
+ const parts={};
+
+ // 按测量比例生成躯干
  const body=new THREE.Group();
- body.name='body';
  root.add(body);
+ parts.body=body;
 
- // 腰部和躯干
- sphere(body,'waist',.24,materials.leather,[0,1.03,0]);
- const torso=new THREE.Mesh(
-  new THREE.CylinderGeometry(.29,.24,.68,20),
-  materials.cloth
- );
- torso.position.y=1.49;
- torso.scale.set(1.15,1,0.72);
- torso.castShadow=true;
- body.add(torso);
+ const torso=mesh(body,
+  new THREE.CylinderGeometry(
+   p.shoulder*.49,p.hip*.57,p.torso,24
+  ),mats.robe,'torso');
+ torso.position.y=p.torso/2+p.thigh+p.shin*.05;
 
- // 胸甲
- const chest=box(body,'chestArmor',[.52,.27,.12],materials.blue,[0,1.62,.02]);
- chest.rotation.z=0;
+ const chest=mesh(body,
+  new THREE.SphereGeometry(1,24,18),
+  mats.robe2,'chest');
+ chest.scale.set(p.shoulder*.51,p.torso*.34,.19);
+ chest.position.set(0,p.thigh+p.shin*.05+p.torso*.70,.02);
 
- // 衣领
- const collar=cylinder(body,'collar',.13,.19,.13,materials.gold,[0,1.84,0]);
- collar.rotation.x=Math.PI/2;
+ const waist=mesh(body,
+  new THREE.CylinderGeometry(
+   p.hip*.54,p.hip*.62,.16,20
+  ),mats.gold,'belt');
+ waist.position.y=p.thigh+p.shin*.05+.08;
 
- // 腰带
- const belt=box(body,'belt',[.52,.09,.3],materials.gold,[0,1.17,0]);
- belt.rotation.z=0;
-
- // 长袍下摆
- const skirt=new THREE.Mesh(
-  new THREE.CylinderGeometry(.47,.62,.65,24,1,true),
-  materials.dark
- );
- skirt.position.y=.78;
- skirt.castShadow=true;
- body.add(skirt);
-
- // 衣袍装饰线
- for(let side of [-1,1]){
-  const line=box(body,'robeTrim',[.025,.62,.015],materials.gold,[side*.34,.79,.04]);
-  line.rotation.z=side*.12;
- }
+ // 下摆
+ const skirt=mesh(body,
+  new THREE.CylinderGeometry(
+   p.hip*.58,p.hip*.95,p.thigh*.85,24,1,true
+  ),mats.pants,'robe skirt');
+ skirt.position.y=p.thigh*.55;
+ skirt.material.side=THREE.DoubleSide;
 
  // 头颈
- cylinder(body,'neck',.095,.11,.22,materials.skin,[0,1.91,0]);
+ const neck=bone(body,'neck',.075,.085,mats.skin);
+ const head=ball(body,'head',p.head,mats.skin);
+ const hair=ball(body,'hair',p.head*1.08,mats.hair);
+ const bun=ball(body,'hair bun',p.head*.55,mats.hair);
 
- const head=new THREE.Group();
- head.name='head';
- head.position.set(0,2.17,0);
- body.add(head);
+ parts.neck=neck;
+ parts.head=head;
+ parts.hair=hair;
+ parts.bun=bun;
 
- sphere(head,'face',.205,materials.skin,[0,0,0]);
- sphere(head,'hairCap',.218,materials.hair,[0,.12,-.025]);
+ // 头部、颈部的初始位置
+ const shoulderY=p.thigh+p.shin*.05+p.torso;
+ const headY=shoulderY+p.head*1.6;
+ head.position.set(0,headY,0);
+ hair.position.set(0,headY+p.head*.3,-.025);
+ bun.position.set(0,headY+p.head*.92,-.05);
+ connect(neck,[0,shoulderY,0],[0,headY-p.head*.75,0]);
 
- // 头发后束
- const pony=cylinder(head,'ponytail',.075,.035,.65,materials.hair,[0,-.22,-.2]);
- pony.rotation.x=-.25;
-
- // 发髻
- sphere(head,'hairBun',.12,materials.hair,[0,.28,-.03]);
-
- // 眉眼
- for(const side of [-1,1]){
-  sphere(head,'eye',.025,materials.black,[side*.075,.015,.185]);
-  box(head,'eyebrow',[.07,.018,.025],materials.hair,[side*.075,.065,.18]);
+ // 面部眼睛
+ for(const s of [-1,1]){
+  const eye=ball(body,'eye',p.head*.10,material(0x10131b));
+  eye.position.set(s*p.head*.32,headY,.18);
  }
+
+ // 头发长束
+ const pony=bone(body,'ponytail',p.head*.28,p.head*.17,mats.hair);
+ connect(pony,[0,headY-p.head*.5,-.16],[0,headY-p.head*2.2,-.25]);
 
  // 肩甲
- const shoulderGroups={};
- for(const side of [-1,1]){
-  const shoulder=new THREE.Group();
-  shoulder.position.set(side*.34,1.72,0);
-  body.add(shoulder);
-  shoulderGroups[side]=shoulder;
+ for(const s of [-1,1]){
+  const sh=ball(body,'shoulder armor',p.shoulder*.20,mats.armor);
+  sh.position.set(s*p.shoulder*.48,shoulderY-.08,0);
 
-  sphere(shoulder,'shoulderArmor',.17,materials.blue,[0,0,0]);
-  sphere(shoulder,'shoulderGold',.13,materials.gold,[0,.025,.07]);
+  const trim=ball(body,'gold shoulder detail',p.shoulder*.12,mats.gold);
+  trim.position.set(s*p.shoulder*.48,shoulderY-.02,.08);
  }
 
- // 手臂关节层级
- const arms={};
- for(const side of [-1,1]){
-  const arm=new THREE.Group();
-  arm.name=side===1?'rightArm':'leftArm';
-  arm.position.set(side*.34,1.68,0);
-  body.add(arm);
+ // 手臂
+ parts.arms={};
+ for(const s of [-1,1]){
+  const group=new THREE.Group();
+  group.name=s===1?'right arm':'left arm';
+  body.add(group);
 
-  const upper=segment(arm,'upperArm',.105,materials.cloth);
-  const elbow=sphere(arm,'elbow',.09,materials.skin,[0,-.38,0]);
-  const fore=segment(arm,'forearm',.085,materials.blue);
-  const wrist=sphere(arm,'wrist',.07,materials.skin,[0,-.78,0]);
-  const hand=sphere(arm,'hand',.095,materials.skin,[0,-.91,.02]);
+  const upper=bone(group,'upper arm',.105,.085,mats.robe2);
+  const elbow=ball(group,'elbow',.09,mats.skin);
+  const lower=bone(group,'forearm',.08,.065,mats.armor);
+  const wrist=ball(group,'wrist',.065,mats.skin);
+  const hand=ball(group,'hand',.09,mats.skin);
 
-  const bracer=box(arm,'bracer',[.16,.25,.13],materials.silver,[0,-.64,.01]);
+  const bracer=mesh(group,
+   new THREE.CylinderGeometry(.09,.075,.23,12),
+   mats.gold,'arm guard');
 
-  arms[side]={upper,elbow,fore,wrist,hand,bracer};
+  parts.arms[s]={upper,elbow,lower,wrist,hand,bracer};
  }
 
  // 腿部
- const legs={};
- for(const side of [-1,1]){
-  const leg=new THREE.Group();
-  leg.position.set(side*.16,.98,0);
-  body.add(leg);
+ parts.legs={};
+ for(const s of [-1,1]){
+  const group=new THREE.Group();
+  body.add(group);
 
-  const thigh=segment(leg,'thigh',.14,materials.dark);
-  const knee=sphere(leg,'knee',.11,materials.blue,[0,-.46,0]);
-  const shin=segment(leg,'shin',.105,materials.cloth);
-  const ankle=sphere(leg,'ankle',.075,materials.skin,[0,-.91,0]);
-  const boot=box(leg,'boot',[.2,.17,.36],materials.leather,[0,-1.04,.08]);
-  const bootTop=box(leg,'bootTop',[.19,.18,.18],materials.gold,[0,-.92,0]);
+  const thigh=bone(group,'thigh',.14,.11,mats.pants);
+  const knee=ball(group,'knee',.105,mats.armor);
+  const shin=bone(group,'shin',.105,.075,mats.pants);
+  const ankle=ball(group,'ankle',.07,mats.skin);
+  const boot=box(group,'boot',.19,.15,.33,mats.boot);
+  const bootTop=box(group,'boot decoration',.19,.055,.19,mats.gold);
 
-  legs[side]={thigh,knee,shin,ankle,boot,bootTop};
+  parts.legs[s]={thigh,knee,shin,ankle,boot,bootTop};
  }
 
  // 披风
- const cape=new THREE.Mesh(
-  new THREE.PlaneGeometry(.9,1.2,8,8),
+ const cape=mesh(body,
+  new THREE.PlaneGeometry(p.shoulder*1.5,p.torso*1.4,8,8),
   new THREE.MeshStandardMaterial({
-   color:0x101e35,side:THREE.DoubleSide,
-   roughness:.9
-  })
- );
- cape.position.set(0,1.28,-.3);
- cape.rotation.x=-.12;
- body.add(cape);
+   color:0x101d34,side:THREE.DoubleSide
+  }),'cape');
+ cape.position.set(0,shoulderY-p.torso*.6,-.24);
+ cape.rotation.x=.08;
+ parts.cape=cape;
 
- // 背后剑鞘
- const sheath=box(body,'swordSheath',[.12,1.05,.13],materials.leather,[.28,1.3,-.25]);
+ // 剑鞘
+ const sheath=box(body,'sword sheath',.11,p.torso*1.1,.11,mats.boot);
+ sheath.position.set(p.shoulder*.75,shoulderY-p.torso*.5,-.25);
  sheath.rotation.z=-.28;
 
- // 剑柄与剑身
  const sword=new THREE.Group();
  sword.name='sword';
  body.add(sword);
- cylinder(sword,'handle',.035,.035,.42,materials.leather,[.62,1.65,.03]);
- const guard=box(sword,'guard',[.3,.055,.09],materials.gold,[.62,1.43,.03]);
- const blade=new THREE.Mesh(
-  new THREE.BoxGeometry(.07,1.2,.025),
-  new THREE.MeshStandardMaterial({
-   color:0xd8e7f5,metalness:.9,roughness:.18
-  })
- );
- blade.position.set(.62,.82,.03);
- sword.add(blade);
+ parts.sword=sword;
 
- root.userData={
-  body,head,arms,legs,shoulders:shoulderGroups,
-  cape,sword,torso
- };
+ const handle=bone(sword,'sword handle',.035,.035,mats.boot);
+ connect(handle,[.5,shoulderY*.85,.04],[.5,shoulderY*.85+.35,.04]);
 
+ const blade=box(sword,'blade',.065,p.torso*1.35,.025,mats.sword);
+ blade.position.set(.5,shoulderY*.85-.45,.04);
+
+ const guard=box(sword,'guard',.26,.045,.08,mats.gold);
+ guard.position.set(.5,shoulderY*.85,.04);
+
+ root.userData={parts,proportions:p};
  return root;
 }
 
-// 将线段更新到两个三维点之间
-function updateBone(mesh,a,b){
- between(mesh,a,b);
+// MediaPipe世界坐标转为Three.js坐标
+function convertLandmarks(world){
+ const hip=(world[23].y+world[24].y)/2;
+ const hipX=(world[23].x+world[24].x)/2;
+ const hipZ=(world[23].z+world[24].z)/2;
+
+ return world.map(p=>V(
+  p.x-hipX,
+  -(p.y-hip),
+  -(p.z-hipZ)
+ ));
 }
 
-// 姿态数据映射到人物
-function applyPose(lm){
- if(!character||!lm||lm.length<33)return;
+// 计算两点间距离
+function distance(a,b){
+ return a.distanceTo(b);
+}
 
- const u=character.userData;
- const body=u.body;
+// 从人体关键点计算比例
+function measureBody(world){
+ const p=convertLandmarks(world);
 
- const p=i=>[
-  (0.5-lm[i].x)*2.6,
-  (0.5-lm[i].y)*2.9+1.1,
-  0
- ];
+ const midpoint=(a,b)=>p[a].clone().add(p[b]).multiplyScalar(.5);
 
- // 姿态点索引
- const ids={
-  ls:11,rs:12,
-  le:13,re:14,
-  lw:15,rw:16,
-  lh:23,rh:24,
-  lk:25,rk:26,
-  la:27,ra:28
+ const shoulder=midpoint(11,12);
+ const hip=midpoint(23,24);
+ const ankle=midpoint(27,28);
+ const nose=p[0];
+
+ const bodyHeight=distance(nose,ankle);
+
+ const shoulderWidth=distance(p[11],p[12]);
+ const hipWidth=distance(p[23],p[24]);
+
+ const torso=distance(shoulder,hip);
+ const upperArm=(distance(p[11],p[13])+distance(p[12],p[14]))/2;
+ const forearm=(distance(p[13],p[15])+distance(p[14],p[16]))/2;
+ const thigh=(distance(p[23],p[25])+distance(p[24],p[26]))/2;
+ const shin=(distance(p[25],p[27])+distance(p[26],p[28]))/2;
+ const head=distance(nose,shoulder)*.62;
+
+ const safe=(v,min,max)=>THREE.MathUtils.clamp(v,min,max);
+
+ // 统一到游戏人物身高，保留各部位之间的相对比例
+ const targetHeight=3.6;
+ const scale=targetHeight/Math.max(bodyHeight,.3);
+
+ return {
+  height:targetHeight,
+  shoulder:safe(shoulderWidth*scale,.34,.85),
+  hip:safe(hipWidth*scale,.24,.68),
+  torso:safe(torso*scale,.55,1.2),
+  upperArm:safe(upperArm*scale,.30,.72),
+  forearm:safe(forearm*scale,.28,.68),
+  thigh:safe(thigh*scale,.36,.82),
+  shin:safe(shin*scale,.32,.82),
+  head:safe(head*scale,.17,.32),
+  measuredHeight:bodyHeight,
+  raw:p
+ };
+}
+
+function updateCharacterPose(measurements,screenLm){
+ if(!character||!measurements)return;
+
+ const u=character.userData.parts;
+ const p=measurements.raw;
+
+ // 用髋部作为角色的身体原点
+ const h=p[23].clone().add(p[24]).multiplyScalar(.5);
+ const targetHeight=3.6;
+ const scale=targetHeight/Math.max(
+  distance(p[0],p[27].clone().add(p[28]).multiplyScalar(.5)),.3
+ );
+
+ // 将世界关键点映射到人物局部坐标
+ const point=i=>{
+  const v=p[i].clone().sub(h).multiplyScalar(scale);
+  return [v.x,v.y,v.z];
  };
 
- const ls=p(ids.ls),rs=p(ids.rs);
- const le=p(ids.le),re=p(ids.re);
- const lw=p(ids.lw),rw=p(ids.rw);
- const lh=p(ids.lh),rh=p(ids.rh);
- const lk=p(ids.lk),rk=p(ids.rk);
- const la=p(ids.la),ra=p(ids.ra);
+ const ls=point(11),rs=point(12);
+ const le=point(13),re=point(14);
+ const lw=point(15),rw=point(16);
+ const lh=point(23),rh=point(24);
+ const lk=point(25),rk=point(26);
+ const la=point(27),ra=point(28);
 
- // 以肩膀与髋部中点作为身体中心
- const shoulderCenter=[
-  (ls[0]+rs[0])/2,(ls[1]+rs[1])/2,0
+ // 让脚底靠近地面
+ const floorY=Math.min(la[1],ra[1]);
+ const adjust=a=>[a[0],a[1]-floorY,a[2]];
+
+ const Ls=adjust(ls),Rs=adjust(rs);
+ const Le=adjust(le),Re=adjust(re);
+ const Lw=adjust(lw),Rw=adjust(rw);
+ const Lh=adjust(lh),Rh=adjust(rh);
+ const Lk=adjust(lk),Rk=adjust(rk);
+ const La=adjust(la),Ra=adjust(ra);
+
+ const mid=(a,b)=>[
+  (a[0]+b[0])/2,
+  (a[1]+b[1])/2,
+  (a[2]+b[2])/2
  ];
- const hipCenter=[
-  (lh[0]+rh[0])/2,(lh[1]+rh[1])/2,0
- ];
 
- // 身体整体倾斜
- const dx=rs[0]-ls[0];
- const dy=rs[1]-ls[1];
- const angle=Math.atan2(dy,dx);
- body.rotation.z=THREE.MathUtils.lerp(
-  body.rotation.z,-angle*.8,.28
+ const centerShoulder=mid(Ls,Rs);
+ const centerHip=mid(Lh,Rh);
+
+ // 躯干随实际肩部和髋部位置变化
+ const torsoCenter=mid(centerShoulder,centerHip);
+ u.body.position.set(0,0,0);
+ u.body.rotation.z=Math.atan2(
+  Rs[1]-Ls[1],Rs[0]-Ls[0]
+ )*.35;
+
+ // 根据肩宽和躯干长度实时调整衣服尺寸
+ const shoulderWidth=distance(
+  V(...Ls),V(...Rs)
+ );
+ const torsoLength=distance(
+  V(...centerShoulder),V(...centerHip)
  );
 
- // 身体高度及左右位置
- body.position.x=THREE.MathUtils.lerp(
-  body.position.x,-hipCenter[0]*.45,.16
+ const torsoMesh=u.body.getObjectByName('torso');
+ torsoMesh.scale.x=THREE.MathUtils.lerp(
+  torsoMesh.scale.x,
+  shoulderWidth/Math.max(measurements.shoulder,.01),.15
  );
 
- // 根据肩髋高度估计躯干姿态
- const shoulderY=shoulderCenter[1];
- const hipY=hipCenter[1];
- body.scale.y=THREE.MathUtils.lerp(
-  body.scale.y,
-  THREE.MathUtils.clamp((shoulderY-hipY)/1.2,.72,1.25),
-  .18
+ // 更新头颈位置
+ const headY=centerShoulder[1]+measurements.head*1.2;
+ u.head.position.set(centerShoulder[0],headY,centerShoulder[2]);
+ u.hair.position.set(centerShoulder[0],headY+measurements.head*.3,centerShoulder[2]-.025);
+ u.bun.position.set(centerShoulder[0],headY+measurements.head*.92,centerShoulder[2]-.05);
+
+ connect(u.neck,
+  [centerShoulder[0],centerShoulder[1],centerShoulder[2]],
+  [centerShoulder[0],headY-measurements.head*.7,centerShoulder[2]]
  );
 
- // 人物手臂映射到相对身体坐标
- function localPoint(world){
-  return [
-   world[0]-hipCenter[0],
-   world[1]-hipCenter[1]+.98,
-   world[2]
-  ];
- }
-
- function moveArm(side,shoulder,elbow,wrist){
-  const arm=u.arms[side];
-  const s=localPoint(shoulder);
-  const e=localPoint(elbow);
-  const w=localPoint(wrist);
-
-  updateBone(arm.upper,s,e);
-  arm.elbow.position.set(...e);
-  updateBone(arm.fore,e,w);
-  arm.wrist.position.set(...w);
-
-  arm.hand.position.set(
-   w[0],w[1]-.1,w[2]
+ // 上下臂
+ function arm(side,s,e,w){
+  const a=u.arms[side];
+  connect(a.upper,s,e,.9,.9);
+  a.elbow.position.set(...e);
+  connect(a.lower,e,w,.8,.8);
+  a.wrist.position.set(...w);
+  a.hand.position.set(w[0],w[1]-.08,w[2]);
+  a.bracer.position.set(
+   (e[0]+w[0])/2,(e[1]+w[1])/2,(e[2]+w[2])/2
   );
+  a.bracer.scale.y=distance(V(...e),V(...w))*.35;
+ }
+ arm(-1,Ls,Le,Lw);
+ arm(1,Rs,Re,Rw);
 
-  arm.bracer.position.set(
-   (e[0]+w[0])/2,
-   (e[1]+w[1])/2,
-   .025
+ // 双腿
+ function leg(side,h,k,a){
+  const part=u.legs[side];
+  connect(part.thigh,h,k,.95,.95);
+  part.knee.position.set(...k);
+  connect(part.shin,k,a,.85,.85);
+  part.ankle.position.set(...a);
+  part.boot.position.set(a[0],a[1]-.07,a[2]+.07);
+  part.bootTop.position.set(a[0],a[1]+.035,a[2]);
+ }
+ leg(-1,Lh,Lk,La);
+ leg(1,Rh,Rk,Ra);
+
+ // 让人物根据画面中的位置左右移动
+ if(screenLm){
+  const hipScreen=(screenLm[23].x+screenLm[24].x)/2;
+  character.position.x=THREE.MathUtils.lerp(
+   character.position.x,(.5-hipScreen)*2.1,.15
   );
  }
 
- moveArm(-1,ls,le,lw);
- moveArm(1,rs,re,rw);
-
- function moveLeg(side,hip,knee,ankle){
-  const leg=u.legs[side];
-  const h=localPoint(hip);
-  const k=localPoint(knee);
-  const a=localPoint(ankle);
-
-  updateBone(leg.thigh,h,k);
-  leg.knee.position.set(...k);
-  updateBone(leg.shin,k,a);
-  leg.ankle.position.set(...a);
-  leg.boot.position.set(a[0],a[1]-.1,.08);
-  leg.bootTop.position.set(a[0],a[1]+.015,0);
- }
-
- moveLeg(-1,lh,lk,la);
- moveLeg(1,rh,rk,ra);
-
- // 头部根据肩部中心变化轻微跟随
- u.head.position.x=THREE.MathUtils.lerp(
-  u.head.position.x,
-  (shoulderCenter[0]-hipCenter[0])*.2,.15
+ // 身体朝向估计
+ const shoulderAngle=Math.atan2(
+  Rs[2]-Ls[2],Rs[0]-Ls[0]
  );
-
- // 识别左右手是否举起，调整剑的展示姿态
- const rightRaised=rw[1]>rs[1];
- u.sword.rotation.z=THREE.MathUtils.lerp(
-  u.sword.rotation.z,rightRaised?-.65:0,.12
+ character.rotation.y=THREE.MathUtils.lerp(
+  character.rotation.y,shoulderAngle*.25,.12
  );
 }
 
-// 绘制摄像头姿态骨架
-const connections=[
+// 生成测量结果后，重新生成整个模型
+function rebuildCharacter(p){
+ const old=character;
+ const pos=old?old.position.clone():V();
+ const rot=old?old.rotation.clone():new THREE.Euler();
+
+ character=buildCharacter(p);
+ character.position.copy(pos);
+ character.rotation.copy(rot);
+
+ if(old){
+  scene.remove(old);
+  old.traverse(o=>{
+   if(o.isMesh){
+    o.geometry.dispose();
+   }
+  });
+ }
+ scene.add(character);
+ calibrated=true;
+}
+
+// 骨架可视化
+const links=[
  [11,12],[11,13],[13,15],[12,14],[14,16],
  [11,23],[12,24],[23,24],
  [23,25],[25,27],[24,26],[26,28],
- [15,17],[15,19],[16,18],[16,20]
+ [0,11],[0,12]
 ];
 
-function drawPose(lm){
+function drawSkeleton(lm){
  const w=canvas.width=canvas.clientWidth*devicePixelRatio;
  const h=canvas.height=canvas.clientHeight*devicePixelRatio;
  ctx.clearRect(0,0,w,h);
  if(!lm)return;
 
+ ctx.strokeStyle='#55dcff';
  ctx.lineWidth=2*devicePixelRatio;
- ctx.strokeStyle='#55d9ff';
-
- for(const [a,b] of connections){
+ for(const [a,b] of links){
   ctx.beginPath();
   ctx.moveTo(lm[a].x*w,lm[a].y*h);
   ctx.lineTo(lm[b].x*w,lm[b].y*h);
   ctx.stroke();
  }
-
- ctx.fillStyle='#ffffff';
- for(const i of [11,12,13,14,15,16,23,24,25,26,27,28]){
+ ctx.fillStyle='#fff';
+ for(const i of [0,11,12,13,14,15,16,23,24,25,26,27,28]){
   ctx.beginPath();
   ctx.arc(lm[i].x*w,lm[i].y*h,3*devicePixelRatio,0,Math.PI*2);
   ctx.fill();
  }
 }
 
-async function setupPose(){
- status.textContent='正在加载姿态识别模型……';
+function showMeasurements(p){
+ $('measure').innerHTML=
+ `<b>身体测量数据</b><br>
+ 肩宽：${p.shoulder.toFixed(2)}<br>
+ 胯宽：${p.hip.toFixed(2)}<br>
+ 躯干：${p.torso.toFixed(2)}<br>
+ 上臂：${p.upperArm.toFixed(2)}<br>
+ 前臂：${p.forearm.toFixed(2)}<br>
+ 大腿：${p.thigh.toFixed(2)}<br>
+ 小腿：${p.shin.toFixed(2)}<br>
+ 头部：${p.head.toFixed(2)}<br>
+ 身高基准：3.60`;
+}
+
+async function setupLandmarker(){
+ status.textContent='正在加载 AI 姿态识别模型……';
 
  const vision=await FilesetResolver.forVisionTasks(
   'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm'
  );
 
- poseLandmarker=await PoseLandmarker.createFromOptions(
+ landmarker=await PoseLandmarker.createFromOptions(
   vision,{
    baseOptions:{
     modelAssetPath:
-    'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task',
+    'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/1/pose_landmarker_full.task',
     delegate:'GPU'
    },
    runningMode:'VIDEO',
-   numPoses:1
+   numPoses:1,
+   minPoseDetectionConfidence:.55,
+   minTrackingConfidence:.55
   }
  );
 }
 
-async function startCamera(){
+async function start(){
  try{
   if(running)return;
 
-  status.textContent='正在请求摄像头权限……';
-
-  if(!navigator.mediaDevices?.getUserMedia){
-   throw new Error('当前环境不支持摄像头，请使用 HTTPS 或 localhost');
-  }
+  status.textContent='正在打开摄像头……';
 
   stream=await navigator.mediaDevices.getUserMedia({
+   audio:false,
    video:{
     facingMode:'user',
-    width:{ideal:640},
-    height:{ideal:480}
-   },
-   audio:false
+    width:{ideal:1280},
+    height:{ideal:720}
+   }
   });
 
   video.srcObject=stream;
   await video.play();
 
-  if(!poseLandmarker)await setupPose();
+  if(!landmarker)await setupLandmarker();
 
   running=true;
-  lastVideoTime=-1;
-  status.textContent='摄像头已启动，正在捕捉动作';
-  detectLoop();
+  lastTime=-1;
+  status.textContent='识别中：请完整站在摄像头前';
+  loop();
 
  }catch(e){
   console.error(e);
@@ -614,75 +709,77 @@ async function startCamera(){
  }
 }
 
-function detectLoop(){
+function loop(){
  if(!running)return;
 
- if(video.readyState>=2&&video.currentTime!==lastVideoTime){
-  lastVideoTime=video.currentTime;
+ if(video.readyState>=2&&video.currentTime!==lastTime){
+  lastTime=video.currentTime;
 
-  try{
-   const result=poseLandmarker.detectForVideo(
-    video,performance.now()
-   );
+  const result=landmarker.detectForVideo(
+   video,performance.now()
+  );
 
-   if(result.landmarks?.length){
-    const lm=result.landmarks[0];
-    applyPose(lm);
-    drawPose(lm);
-   }else{
-    drawPose(null);
+  if(result.landmarks?.length){
+   const lm=result.landmarks[0];
+   const world=result.worldLandmarks?.[0];
+
+   drawSkeleton(lm);
+   currentPose=lm;
+
+   if(world){
+    const now=performance.now();
+
+    // 每隔一段时间重新测量，避免人物比例因抖动频繁变化
+    if(!proportions||!calibrated){
+     proportions=measureBody(world);
+     rebuildCharacter(proportions);
+     showMeasurements(proportions);
+     status.textContent='人体测量完成，已生成对应人物';
+     lastMeasureTime=now;
+    }
+
+    updateCharacterPose(proportions,lm);
    }
-  }catch(e){
-   console.error(e);
+
+  }else{
+   drawSkeleton(null);
+   status.textContent='没有识别到完整人体，请调整站位';
   }
  }
 
- animationFrame=requestAnimationFrame(detectLoop);
+ raf=requestAnimationFrame(loop);
 }
 
-function stopCamera(){
+function stop(){
  running=false;
- cancelAnimationFrame(animationFrame);
-
+ cancelAnimationFrame(raf);
  if(stream){
   stream.getTracks().forEach(t=>t.stop());
   stream=null;
  }
-
  video.srcObject=null;
  ctx.clearRect(0,0,canvas.width,canvas.height);
  status.textContent='摄像头已停止';
 }
 
-function resetCharacter(){
- if(!character)return;
- character.position.set(0,0,0);
- character.rotation.set(0,0,0);
- character.scale.set(1,1,1);
- const u=character.userData;
- u.body.position.set(0,0,0);
- u.body.rotation.set(0,0,0);
- u.body.scale.set(1,1,1);
- u.sword.rotation.set(0,0,0);
-}
-
-$('start').addEventListener('click',startCamera);
-$('stop').addEventListener('click',stopCamera);
-$('reset').addEventListener('click',resetCharacter);
-
-function animate(){
- requestAnimationFrame(animate);
- const t=clock.getElapsedTime();
-
- if(character&&!running){
-  character.userData.cape.rotation.x=
-   -.12+Math.sin(t*1.5)*.035;
-  character.userData.head.rotation.y=
-   Math.sin(t*.5)*.035;
+function reset(){
+ if(character){
+  character.position.set(0,0,0);
+  character.rotation.set(0,0,0);
  }
-
- renderer.render(scene,camera);
+ status.textContent='人物位置已重置';
 }
+
+function recalibrate(){
+ calibrated=false;
+ proportions=null;
+ status.textContent='请保持全身出现在摄像头中，正在等待重新测量';
+}
+
+$('start').addEventListener('click',start);
+$('stop').addEventListener('click',stop);
+$('reset').addEventListener('click',reset);
+$('rebuild').addEventListener('click',recalibrate);
 
 window.addEventListener('resize',()=>{
  if(!camera||!renderer)return;
@@ -690,6 +787,11 @@ window.addEventListener('resize',()=>{
  camera.updateProjectionMatrix();
  renderer.setSize(innerWidth,innerHeight);
 });
+
+function animate(){
+ requestAnimationFrame(animate);
+ if(renderer&&scene&&camera)renderer.render(scene,camera);
+}
 
 initScene();
 animate();
