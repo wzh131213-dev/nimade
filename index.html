@@ -1,701 +1,1046 @@
+
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Air Piano - 空中绘画钢琴 V2.1</title>
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>AI数字人动作镜像</title>
+
 <style>
-*{box-sizing:border-box}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{
+ width:100%;height:100%;overflow:hidden;
+ background:#080c16;color:#fff;
+ font-family:-apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif;
+}
 body{
-  margin:0;background:#0a0c12;color:white;
-  font-family:Arial,"Microsoft YaHei",sans-serif;
-  overflow:hidden;
+ display:flex;flex-direction:column;
+ padding:9px;gap:8px;
 }
-button,select{cursor:pointer}
-.app{height:100dvh;display:flex;flex-direction:column;padding:10px;gap:9px}
-header{height:48px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
-.logo{font-size:19px;font-weight:bold;letter-spacing:1px}
-.logo span{color:#39ff14;text-shadow:0 0 12px #39ff14}
-.status{font-size:12px;color:#39ff14}
-.main{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 280px;gap:10px}
-.cameraPanel,.sidePanel{background:#12151f;border:1px solid #2a3142;border-radius:14px;overflow:hidden}
-.cameraPanel{display:flex;flex-direction:column;min-width:0}
-.panelTitle{padding:10px 13px;font-size:13px;border-bottom:1px solid #2a3142;display:flex;justify-content:space-between;align-items:center}
-.stage{position:relative;flex:1;min-height:0;background:#05060a;overflow:hidden}
-video,#canvas{position:absolute;width:100%;height:100%;inset:0;object-fit:cover}
-video{transform:scaleX(-1)}
-#canvas{pointer-events:none}
-.empty{position:absolute;inset:0;display:grid;place-items:center;text-align:center;color:#8a93a8;padding:20px;line-height:2}
-.empty strong{display:block;color:white;font-size:18px}
-.stage.started .empty{display:none}
-.tools{display:flex;flex-wrap:wrap;gap:7px;padding:10px;border-top:1px solid #2a3142}
-button,select{
-  background:#252b3a;color:white;border:1px solid #3d465c;
-  border-radius:8px;padding:10px 12px;font-size:12px
+header{text-align:center;flex-shrink:0}
+h1{
+ font-size:21px;
+ background:linear-gradient(90deg,#00e676,#00c8ff,#bd8aff);
+ -webkit-background-clip:text;
+ color:transparent;
 }
-button.primary{background:#39ff14;color:#0a0f08;border-color:#39ff14;font-weight:bold;box-shadow:0 0 14px rgba(57,255,20,.35)}
-button.pink{background:#3a1835;border-color:#e040a0;color:#ff7ecb}
-button:active{transform:scale(.97)}
-.sidePanel{padding:12px;display:flex;flex-direction:column;gap:12px;overflow:auto}
-.section{background:#0d1018;border:1px solid #2a3142;border-radius:10px;padding:11px}
-.section h3{font-size:13px;margin:0 0 10px;color:#c8d0e0}
-.modes{display:grid;grid-template-columns:1fr 1fr;gap:6px}
-.modes button.active{background:#39ff14;color:#0a0f08;box-shadow:0 0 10px rgba(57,255,20,.3)}
-.description{font-size:11px;color:#8a93a8;line-height:1.7;margin-top:9px}
-.piano{height:300px;display:flex;gap:7px}
-.pitchLabels{display:flex;flex-direction:column;justify-content:space-between;color:#7a8499;font-size:10px}
-.keyboard{position:relative;flex:1;display:flex;overflow:hidden;border:1px solid #3d465c;border-radius:5px;background:#07090e}
-.whites{display:flex;width:100%}
-.white{flex:1;background:linear-gradient(90deg,#ddd,#fff,#d5d9e2);border-right:1px solid #aaa}
-.white.active{background:#39ff14;box-shadow:0 0 20px #39ff14}
-.blacks{position:absolute;inset:0 0 auto;height:60%;pointer-events:none}
-.black{position:absolute;width:7%;height:100%;background:linear-gradient(90deg,#08090c,#343946,#08090c);border-radius:0 0 4px 4px}
-.black.active{background:#ff39ce;box-shadow:0 0 18px #ff39ce}
-.stats{display:grid;grid-template-columns:1fr 1fr;gap:7px}
-.stat{background:#1a2030;padding:9px;border-radius:7px}
-.stat small{display:block;color:#7a8499;font-size:10px}
-.stat b{display:block;font-size:17px;margin-top:5px}
-.colorList{display:grid;grid-template-columns:1fr 1fr;gap:7px;font-size:10px;color:#b0b8c8}
-.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px}
-.progress{height:4px;background:#2a3142;margin-top:9px;border-radius:5px;overflow:hidden}
-.progress div{height:100%;width:0;background:linear-gradient(90deg,#ff39ce,#ff7ecb);box-shadow:0 0 8px #ff39ce}
-footer{font-size:10px;color:#5a6478;text-align:center;flex-shrink:0}
-body.fullscreen .app{padding:5px}
-body.fullscreen .main{grid-template-columns:minmax(0,1fr) 260px}
-body.fullscreen .stage{min-height:0}
-@media(max-width:750px){
-  .app{padding:6px;gap:6px}
-  header{height:38px}
-  .main{grid-template-columns:minmax(0,1fr) 115px;gap:6px}
-  .sidePanel{padding:6px;gap:7px}
-  .section{padding:7px}
-  .piano{height:230px}
-  .pitchLabels{font-size:8px}
-  .section h3{font-size:11px}
-  .description{font-size:9px}
-  .modes{grid-template-columns:1fr}
-  .modes button{padding:7px 3px;font-size:10px}
-  .tools{padding:6px;gap:5px}
-  button,select{padding:9px 7px;font-size:10px}
-  .colorList{grid-template-columns:1fr}
+header p{font-size:11px;color:#9caac0;margin-top:4px}
+.controls{
+ display:flex;justify-content:center;
+ gap:9px;flex-shrink:0;flex-wrap:wrap;
 }
-@media(max-width:480px){
-  .main{grid-template-columns:minmax(0,1fr) 98px}
-  .piano{height:190px}
-  .stat{padding:5px}
-  .stat b{font-size:12px}
-  .status{font-size:9px}
+button{
+ border:0;border-radius:30px;padding:11px 24px;
+ background:linear-gradient(120deg,#00e676,#00baff);
+ color:#07131b;font-weight:bold;font-size:14px;
+}
+button.secondary{background:#293448;color:white}
+button:disabled{opacity:.4}
+.status{
+ text-align:center;font-size:11px;
+ color:#00e676;min-height:16px;flex-shrink:0;
+}
+.stage{
+ flex:1;min-height:0;
+ display:flex;flex-direction:column;gap:9px;
+}
+.panel{
+ position:relative;flex:1;min-height:0;
+ overflow:hidden;border:1px solid #29394e;
+ border-radius:13px;background:#0c1220;
+}
+.panel-label{
+ position:absolute;top:9px;left:9px;z-index:5;
+ background:#0009;padding:6px 12px;
+ border-radius:20px;font-size:11px;
+}
+video,canvas{
+ position:absolute;inset:0;
+ width:100%;height:100%;
+ display:block;object-fit:contain;
+}
+#webcam{transform:scaleX(-1)}
+.hint{
+ flex-shrink:0;text-align:center;
+ font-size:10px;color:#8999ae;
+}
+@media(orientation:landscape) and (min-width:650px){
+ .stage{flex-direction:row}
 }
 </style>
 </head>
+
 <body>
-<div class="app">
+
 <header>
-  <div class="logo">♫ AIR <span>PIANO</span> V2.1</div>
-  <div class="status" id="status">● 摄像头未启动</div>
+<h1>AI 全身数字人镜像</h1>
+<p>全身动作 · 双手五指 · 眼神 · 面部表情实时追踪</p>
 </header>
 
-<div class="main">
-<section class="cameraPanel">
-  <div class="panelTitle">
-   <b>实时手势画布</b>
-   <span id="fps">等待摄像头</span>
-  </div>
-  <div class="stage" id="stage">
-   <video id="video" autoplay muted playsinline></video>
-   <canvas id="canvas"></canvas>
-   <div class="empty">
-    <div>
-     <div style="font-size:45px">◎</div>
-     <strong>空中绘画钢琴</strong>
-     请启动摄像头<br>
-     伸出手指，在空气中绘制旋律
-    </div>
-   </div>
-  </div>
-  <div class="tools">
-   <button class="primary" id="cameraBtn">启动摄像头</button>
-   <button class="pink" id="startBtn" disabled>▶ 开始</button>
-   <button id="playBtn">▶ 回放</button>
-   <button id="clearBtn">清空</button>
-   <button id="fullscreenBtn">⛶ 全屏</button>
-   <select id="scale">
-    <option value="C">C大调</option>
-    <option value="G">G大调</option>
-    <option value="A">A小调</option>
-    <option value="P" selected>五声音阶</option>
-    <option value="Cm">C小调五声</option>
-    <option value="all">全部半音</option>
-   </select>
-  </div>
-</section>
-
-<aside class="sidePanel">
-  <div class="section">
-   <h3>演奏模式</h3>
-   <div class="modes">
-    <button class="active" id="liveMode">实时演奏</button>
-    <button id="drawMode">绘画后播放</button>
-   </div>
-   <div class="description" id="modeText">
-    先启动摄像头，再点击「开始」，伸出手指即可演奏。
-   </div>
-   <div class="progress"><div id="progress"></div></div>
-  </div>
-
-  <div class="section">
-   <h3>钢琴音域</h3>
-   <div class="piano">
-    <div class="pitchLabels">
-     <span>C6</span><span>A5</span><span>F5</span>
-     <span>D5</span><span>C4</span><span>A3</span><span>C3</span>
-    </div>
-    <div class="keyboard">
-     <div class="whites" id="whites"></div>
-     <div class="blacks" id="blacks"></div>
-    </div>
-   </div>
-  </div>
-
-  <div class="section">
-   <h3>十指颜色</h3>
-   <div class="colorList" id="colors"></div>
-  </div>
-
-  <div class="section">
-   <h3>演奏数据</h3>
-   <div class="stats">
-    <div class="stat"><small>记录音符</small><b id="count">0</b></div>
-    <div class="stat"><small>识别手数</small><b id="hands">0</b></div>
-    <div class="stat"><small>当前音符</small><b id="current">—</b></div>
-    <div class="stat"><small>演奏时长</small><b id="duration">0s</b></div>
-   </div>
-   <div style="display:flex;gap:5px;margin-top:9px">
-    <button id="saveBtn" style="flex:1">保存</button>
-    <button id="loadBtn" style="flex:1">载入</button>
-   </div>
-   <input type="file" id="file" accept=".json" hidden>
-  </div>
-</aside>
-</div>
-<footer>MediaPipe Hands · Web Audio API · 双手十指追踪 · 霓虹轨迹</footer>
+<div class="controls">
+<button id="startBtn">开启摄像头</button>
+<button id="stopBtn" class="secondary" disabled>停止</button>
 </div>
 
-<script>
-const $=id=>document.getElementById(id);
-const video=$('video'),canvas=$('canvas'),ctx=canvas.getContext('2d');
-const stage=$('stage');
+<div class="status" id="status">正在准备 AI 模型...</div>
 
-const fingerNames=['拇指','食指','中指','无名指','小指'];
-// Neon palette closer to the Douyin video (bright green + accents)
-const colors=['#39ff14','#00ff9d','#7cff39','#b8ff4a','#e0ff66'];
-const tips=[4,8,12,16,20];
-const pips=[3,6,10,14,18];
+<div class="stage">
+ <div class="panel">
+  <div class="panel-label">真实摄像头</div>
+  <video id="webcam" autoplay playsinline muted></video>
+ </div>
 
-let handsModel=null,stream=null,running=false;
-let mode='live',active=false;  // active = 点击「开始」后才真正追踪
-let points=[],notes=[],audio=null;
-let lastTriggers={};
-let playbackTimer=null,playbackStart=0;
-let playbackIndex=0,recordStart=0;
-let lastFrame=0,frames=0;
-const MIN=48,MAX=84; // C3 ~ C6
+ <div class="panel">
+  <div class="panel-label">AI 数字人镜像</div>
+  <canvas id="canvas"></canvas>
+ </div>
+</div>
 
-const scales={
-  C:[0,2,4,5,7,9,11],
-  G:[0,2,4,6,7,9,11],
-  A:[0,2,3,5,7,8,10],
-  P:[0,2,4,7,9],          // major pentatonic
-  Cm:[0,3,5,7,10],        // C minor pentatonic (matches the video caption)
-  all:Array.from({length:12},(_,i)=>i)
+<div class="hint">
+请保持身体、双手和面部在镜头内。建议使用光线充足的环境。
+</div>
+
+<script type="module">
+
+import {
+ FilesetResolver,
+ PoseLandmarker,
+ HandLandmarker,
+ FaceLandmarker
+} from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/+esm";
+
+/* ===============================
+   1. 基础配置
+================================ */
+
+const video=document.getElementById("webcam");
+const canvas=document.getElementById("canvas");
+const ctx=canvas.getContext("2d");
+
+const startBtn=document.getElementById("startBtn");
+const stopBtn=document.getElementById("stopBtn");
+const statusEl=document.getElementById("status");
+
+let pose=null;
+let hands=null;
+let face=null;
+let stream=null;
+
+let running=false;
+let raf=0;
+
+let lastPoseTime=0;
+let lastHandTime=0;
+let lastFaceTime=0;
+
+let poseData=null;
+let handData=null;
+let faceData=null;
+
+let smoothFace=null;
+
+let faceLastSeen=0;
+let handLastSeen=0;
+let poseLastSeen=0;
+
+const CONFIG={
+ poseInterval:65,
+ handInterval:65,
+ faceInterval:55,
+ faceSmooth:0.38,
+ faceHold:350,
+ handHold:180,
+ poseHold:180
 };
 
-function resize(){
-  const r=stage.getBoundingClientRect();
-  canvas.width=Math.round(r.width*devicePixelRatio);
-  canvas.height=Math.round(r.height*devicePixelRatio);
-  ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);
-  draw();
+const C={
+ background:"#0a0e18",
+ body:"#00e676",
+ hand1:"#00d9ff",
+ hand2:"#ff4fd8",
+ face:"#b49aff",
+ faceLight:"#e0d5ff",
+ eyeWhite:"#f7fbff",
+ iris:"#39baff",
+ pupil:"#10182b",
+ nose:"#d6b6ff",
+ lip:"#f17da9",
+ lipDark:"#69223f",
+ ear:"#c6adff"
+};
+
+/* ===============================
+   2. 画布尺寸及坐标
+================================ */
+
+function resizeCanvas(){
+ const r=canvas.getBoundingClientRect();
+ const dpr=Math.min(window.devicePixelRatio||1,2);
+
+ canvas.width=Math.round(r.width*dpr);
+ canvas.height=Math.round(r.height*dpr);
+
+ ctx.setTransform(dpr,0,0,dpr,0,0);
 }
-new ResizeObserver(resize).observe(stage);
 
-const pitch=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
-function noteName(m){return pitch[m%12]+(Math.floor(m/12)-1)}
-function frequency(m){return 440*Math.pow(2,(m-69)/12)}
+new ResizeObserver(resizeCanvas).observe(canvas);
+window.addEventListener("resize",resizeCanvas);
+resizeCanvas();
 
-function createKeyboard(){
-  for(let i=0;i<22;i++){
-    let e=document.createElement('div');
-    e.className='white';
-    e.dataset.midi=48+i*2;
-    $('whites').appendChild(e);
+/*
+  根据视频实际比例进行坐标映射。
+  防止摄像头和骨骼画面不一致。
+*/
+
+function P(lm){
+ const cw=canvas.clientWidth;
+ const ch=canvas.clientHeight;
+
+ const vw=video.videoWidth||640;
+ const vh=video.videoHeight||480;
+
+ const scale=Math.min(cw/vw,ch/vh);
+ const rw=vw*scale;
+ const rh=vh*scale;
+
+ const ox=(cw-rw)/2;
+ const oy=(ch-rh)/2;
+
+ return {
+  x:ox+(1-lm.x)*rw,
+  y:oy+lm.y*rh
+ };
+}
+
+function clearCanvas(){
+ ctx.clearRect(0,0,canvas.clientWidth,canvas.clientHeight);
+ ctx.fillStyle=C.background;
+ ctx.fillRect(0,0,canvas.clientWidth,canvas.clientHeight);
+}
+
+function line(a,b,color,width=2){
+ ctx.beginPath();
+ ctx.moveTo(a.x,a.y);
+ ctx.lineTo(b.x,b.y);
+ ctx.strokeStyle=color;
+ ctx.lineWidth=width;
+ ctx.lineCap="round";
+ ctx.lineJoin="round";
+ ctx.stroke();
+}
+
+function dot(p,r,color,fill=true){
+ ctx.beginPath();
+ ctx.arc(p.x,p.y,r,0,Math.PI*2);
+ ctx.fillStyle=color;
+ ctx.strokeStyle=color;
+ ctx.lineWidth=1.4;
+ if(fill)ctx.fill();
+ else ctx.stroke();
+}
+
+function smoothPath(points,close=true){
+ if(points.length<3)return;
+
+ ctx.beginPath();
+
+ const first=points[0];
+ const last=points[points.length-1];
+
+ ctx.moveTo(
+  (last.x+first.x)/2,
+  (last.y+first.y)/2
+ );
+
+ for(let i=0;i<points.length;i++){
+  const a=points[i];
+  const b=points[(i+1)%points.length];
+
+  ctx.quadraticCurveTo(
+   a.x,a.y,
+   (a.x+b.x)/2,
+   (a.y+b.y)/2
+  );
+ }
+
+ if(close)ctx.closePath();
+}
+
+function drawLandmarkPath(lms,ids,color,width=2,close=false){
+ const points=ids.map(i=>P(lms[i]));
+ if(points.length<2)return;
+
+ ctx.beginPath();
+ ctx.moveTo(points[0].x,points[0].y);
+
+ for(let i=1;i<points.length;i++){
+  ctx.lineTo(points[i].x,points[i].y);
+ }
+
+ if(close)ctx.closePath();
+
+ ctx.strokeStyle=color;
+ ctx.lineWidth=width;
+ ctx.lineCap="round";
+ ctx.lineJoin="round";
+ ctx.stroke();
+}
+
+/* ===============================
+   3. 身体骨骼
+================================ */
+
+const BODY_LINKS=[
+ [11,13],[13,15],
+ [12,14],[14,16],
+ [11,12],
+ [11,23],[12,24],
+ [23,24],
+ [23,25],[25,27],
+ [24,26],[26,28],
+ [27,31],[28,32]
+];
+
+function drawBody(lms){
+ if(!lms||lms.length<33)return;
+
+ const scale=Math.max(2,canvas.clientWidth/280);
+
+ ctx.save();
+
+ ctx.shadowColor=C.body;
+ ctx.shadowBlur=9;
+
+ BODY_LINKS.forEach(([a,b])=>{
+  if((lms[a].visibility??1)<.25)return;
+  if((lms[b].visibility??1)<.25)return;
+
+  line(P(lms[a]),P(lms[b]),C.body,scale);
+ });
+
+ ctx.shadowBlur=0;
+
+ [11,12,13,14,15,16,23,24,25,26,27,28].forEach(i=>{
+  if((lms[i].visibility??1)<.25)return;
+  dot(P(lms[i]),scale*.65,"#ffffff");
+ });
+
+ if((lms[0].visibility??1)>.25){
+  dot(P(lms[0]),scale*2,C.body);
+ }
+
+ ctx.restore();
+}
+
+/* ===============================
+   4. 双手及五指
+================================ */
+
+const FINGERS=[
+ [0,1,2,3,4],
+ [0,5,6,7,8],
+ [0,9,10,11,12],
+ [0,13,14,15,16],
+ [0,17,18,19,20]
+];
+
+const PALM=[
+ [5,9],[9,13],[13,17],[5,17]
+];
+
+function drawHand(lms,color,index){
+ if(!lms||lms.length!==21)return;
+
+ const p=lms.map(P);
+ const s=Math.max(2,canvas.clientWidth/300);
+
+ ctx.save();
+
+ // 手掌半透明区域
+ ctx.beginPath();
+
+ [0,1,5,9,13,17].forEach((id,i)=>{
+  if(i===0)ctx.moveTo(p[id].x,p[id].y);
+  else ctx.lineTo(p[id].x,p[id].y);
+ });
+
+ ctx.closePath();
+ ctx.fillStyle=color+"18";
+ ctx.fill();
+
+ ctx.strokeStyle=color;
+ ctx.lineWidth=s;
+ ctx.stroke();
+
+ // 手指
+ FINGERS.forEach(f=>{
+  for(let i=0;i<f.length-1;i++){
+   line(
+    p[f[i]],
+    p[f[i+1]],
+    color,
+    s*(1.1-i*.1)
+   );
   }
-  [1,3,6,8,10,13,15,18,20].forEach(n=>{
-    let e=document.createElement('div');
-    e.className='black';
-    e.dataset.midi=49+(n-1)*2;
-    e.style.left=(n/22*100-3.5)+'%';
-    $('blacks').appendChild(e);
-  });
-  fingerNames.forEach((n,i)=>{
-    $('colors').innerHTML+=
-    `<div><i class="dot" style="background:${colors[i]};box-shadow:0 0 6px ${colors[i]}"></i>${n}</div>`;
-  });
-}
-createKeyboard();
+ });
 
-function getAudio(){
-  if(!audio){
-    const AC=window.AudioContext||window.webkitAudioContext;
-    audio=new AC();
+ // 手掌横向连接
+ PALM.forEach(([a,b])=>{
+  line(p[a],p[b],color,s*.7);
+ });
+
+ // 21个关节点
+ p.forEach((v,i)=>{
+  const tip=[4,8,12,16,20].includes(i);
+  dot(v,tip?s*.95:s*.55,tip?"#ffffff":color);
+ });
+
+ ctx.restore();
+}
+
+/* ===============================
+   5. 面部关键点
+================================ */
+
+const FACE_OVAL=[
+ 10,338,297,332,284,251,389,356,454,
+ 323,361,288,397,365,379,378,400,377,
+ 152,148,176,149,150,136,172,58,132,
+ 93,234,127,162,21,54,103,67,109
+];
+
+const LEFT_EYE=[
+ 263,249,390,373,374,380,381,382,
+ 362,466,388,387,386,385,384,398
+];
+
+const RIGHT_EYE=[
+ 33,7,163,144,145,153,154,155,
+ 133,246,161,160,159,158,157,173
+];
+
+const LEFT_IRIS=[468,469,470,471,472];
+const RIGHT_IRIS=[473,474,475,476,477];
+
+const LIP_OUTER=[
+ 61,185,40,39,37,0,267,269,270,409,
+ 291,375,321,405,314,17,84,181,91,146
+];
+
+const LIP_INNER=[
+ 78,191,80,81,82,13,312,311,310,415,
+ 308,324,318,402,317,14,87,178,88,95
+];
+
+/* ===============================
+   6. 面部轮廓
+================================ */
+
+function drawFaceOutline(lms){
+ const pts=FACE_OVAL.map(i=>P(lms[i]));
+
+ ctx.save();
+
+ smoothPath(pts);
+
+ // 柔和的面部底色
+ const b=ctx.createLinearGradient(
+  0,pts[0].y,0,pts[Math.floor(pts.length/2)].y
+ );
+
+ b.addColorStop(0,"rgba(160,140,255,0.08)");
+ b.addColorStop(1,"rgba(160,140,255,0.015)");
+
+ ctx.fillStyle=b;
+ ctx.fill();
+
+ ctx.strokeStyle=C.face;
+ ctx.lineWidth=Math.max(2,canvas.clientWidth/500);
+ ctx.lineJoin="round";
+ ctx.stroke();
+
+ ctx.restore();
+}
+
+/* ===============================
+   7. 眼睛与眼神
+================================ */
+
+function drawEye(lms,ids,irisIds){
+ const points=ids.map(i=>P(lms[i]));
+
+ ctx.save();
+
+ // 眼白
+ smoothPath(points);
+
+ ctx.fillStyle=C.eyeWhite;
+ ctx.fill();
+
+ ctx.strokeStyle="#a6b4d0";
+ ctx.lineWidth=1.3;
+ ctx.stroke();
+
+ // 虹膜
+ const center=P(lms[irisIds[0]]);
+ const edge=P(lms[irisIds[1]]);
+
+ const radius=Math.max(
+  2,
+  Math.hypot(
+   edge.x-center.x,
+   edge.y-center.y
+  )*1.25
+ );
+
+ // 虹膜外圈
+ ctx.beginPath();
+ ctx.arc(center.x,center.y,radius,0,Math.PI*2);
+ ctx.fillStyle=C.iris;
+ ctx.fill();
+
+ // 虹膜纹理
+ ctx.strokeStyle="#b5ecff";
+ ctx.lineWidth=.8;
+
+ for(let i=0;i<8;i++){
+  const angle=i*Math.PI/4;
+  ctx.beginPath();
+  ctx.moveTo(
+   center.x+Math.cos(angle)*radius*.55,
+   center.y+Math.sin(angle)*radius*.55
+  );
+  ctx.lineTo(
+   center.x+Math.cos(angle)*radius*.88,
+   center.y+Math.sin(angle)*radius*.88
+  );
+  ctx.stroke();
+ }
+
+ // 瞳孔
+ ctx.beginPath();
+ ctx.arc(
+  center.x,center.y,
+  radius*.48,0,Math.PI*2
+ );
+ ctx.fillStyle=C.pupil;
+ ctx.fill();
+
+ // 眼睛高光
+ dot({
+  x:center.x-radius*.3,
+  y:center.y-radius*.3
+ },Math.max(1,radius*.2),"#ffffff");
+
+ // 上眼睑和下眼睑
+ ctx.beginPath();
+ ctx.moveTo(points[0].x,points[0].y);
+ ctx.quadraticCurveTo(
+  points[4].x,points[4].y,
+  points[8].x,points[8].y
+ );
+ ctx.strokeStyle="#b49aff";
+ ctx.lineWidth=2;
+ ctx.stroke();
+
+ ctx.restore();
+}
+
+/* ===============================
+   8. 眉毛
+================================ */
+
+function drawEyebrows(lms){
+ const brows=[
+  [70,63,105,66,107],
+  [336,296,334,293,300]
+ ];
+
+ brows.forEach(ids=>{
+  const pts=ids.map(i=>P(lms[i]));
+
+  ctx.beginPath();
+  ctx.moveTo(pts[0].x,pts[0].y);
+
+  for(let i=1;i<pts.length;i++){
+   ctx.lineTo(pts[i].x,pts[i].y);
   }
-  if(audio.state==='suspended')audio.resume();
-  return audio;
+
+  ctx.strokeStyle="#d0bcff";
+  ctx.lineWidth=3;
+  ctx.lineCap="round";
+  ctx.stroke();
+ });
 }
 
-function playNote(midi){
-  const ac=getAudio();
-  const osc=ac.createOscillator();
-  const gain=ac.createGain();
-  const filter=ac.createBiquadFilter();
+/* ===============================
+   9. 鼻子
+================================ */
 
-  osc.type='triangle';
-  osc.frequency.value=frequency(midi);
-  filter.type='lowpass';
-  filter.frequency.value=2600;
+function drawNose(lms){
+ ctx.save();
 
-  gain.gain.setValueAtTime(.0001,ac.currentTime);
-  gain.gain.exponentialRampToValueAtTime(.18,ac.currentTime+.02);
-  gain.gain.exponentialRampToValueAtTime(.0001,ac.currentTime+.5);
+ const bridge=[168,6,197,195,5,4];
 
-  osc.connect(filter);
-  filter.connect(gain);
-  gain.connect(ac.destination);
-  osc.start();
-  osc.stop(ac.currentTime+.52);
+ const pts=bridge.map(i=>P(lms[i]));
 
-  $('current').textContent=noteName(midi);
+ ctx.beginPath();
+ ctx.moveTo(pts[0].x,pts[0].y);
 
-  document.querySelectorAll('.white,.black').forEach(k=>{
-    if(Number(k.dataset.midi)===midi)k.classList.add('active');
-    else k.classList.remove('active');
-  });
-  setTimeout(()=>{
-    document.querySelectorAll('.white,.black').forEach(k=>k.classList.remove('active'));
-  },250);
+ pts.slice(1).forEach(p=>{
+  ctx.lineTo(p.x,p.y);
+ });
+
+ ctx.strokeStyle=C.nose;
+ ctx.lineWidth=2.3;
+ ctx.lineCap="round";
+ ctx.stroke();
+
+ const tip=P(lms[1]);
+ const left=P(lms[98]);
+ const right=P(lms[327]);
+
+ ctx.beginPath();
+ ctx.moveTo(left.x,left.y);
+ ctx.quadraticCurveTo(
+  tip.x,tip.y+4,
+  right.x,right.y
+ );
+
+ ctx.strokeStyle="#f3c6df";
+ ctx.lineWidth=2;
+ ctx.stroke();
+
+ dot(tip,2.2,"#f1c7ff");
+
+ ctx.restore();
 }
 
-function quantize(m){
-  const allowed=scales[$('scale').value];
-  if(!allowed)return m;
-  let best=m,dist=99;
-  for(let x=MIN;x<=MAX;x++){
-    if(allowed.includes(x%12)&&Math.abs(x-m)<dist){
-      best=x;dist=Math.abs(x-m);
-    }
-  }
-  return best;
+/* ===============================
+   10. 嘴巴和嘴唇
+================================ */
+
+function drawMouth(lms){
+ ctx.save();
+
+ const outer=LIP_OUTER.map(i=>P(lms[i]));
+ const inner=LIP_INNER.map(i=>P(lms[i]));
+
+ // 外嘴唇
+ smoothPath(outer);
+
+ const gradient=ctx.createLinearGradient(
+  0,outer[0].y-10,
+  0,outer[0].y+25
+ );
+
+ gradient.addColorStop(0,"#ffadc7");
+ gradient.addColorStop(1,"#e75c91");
+
+ ctx.fillStyle=gradient;
+ ctx.fill();
+
+ ctx.strokeStyle="#f17da9";
+ ctx.lineWidth=1.7;
+ ctx.stroke();
+
+ // 嘴巴内部
+ smoothPath(inner);
+ ctx.fillStyle="#61203d";
+ ctx.fill();
+
+ // 唇部中线
+ const upper=P(lms[13]);
+ const lower=P(lms[14]);
+
+ ctx.beginPath();
+ ctx.moveTo(upper.x,upper.y);
+ ctx.quadraticCurveTo(
+  (upper.x+lower.x)/2,
+  (upper.y+lower.y)/2,
+  lower.x,lower.y
+ );
+
+ ctx.strokeStyle="#ffb3d0";
+ ctx.lineWidth=1;
+ ctx.stroke();
+
+ ctx.restore();
 }
 
-function getMidi(y){
-  return quantize(Math.max(MIN,Math.min(MAX,
-  Math.round(MAX-y/stage.clientHeight*(MAX-MIN)))));
-}
+/* ===============================
+   11. 耳朵
+================================ */
 
-function drawGrid(w,h){
-  // horizontal note lines (like the video)
+function drawEars(lms){
+ ctx.save();
+
+ const left=P(lms[234]);
+ const right=P(lms[454]);
+
+ const faceWidth=Math.abs(right.x-left.x);
+
+ const rx=Math.max(4,faceWidth*.045);
+ const ry=Math.max(7,faceWidth*.085);
+
+ [left,right].forEach((p,i)=>{
+  const dir=i===0?-1:1;
+
+  ctx.beginPath();
+  ctx.ellipse(
+   p.x+dir*rx*.35,
+   p.y+ry*.12,
+   rx,ry,0,0,Math.PI*2
+  );
+
+  ctx.fillStyle="#171c32";
+  ctx.strokeStyle=C.ear;
+  ctx.lineWidth=2;
+  ctx.fill();
+  ctx.stroke();
+
+  // 耳廓内部
+  ctx.beginPath();
+  ctx.ellipse(
+   p.x+dir*rx*.35,
+   p.y+ry*.12,
+   rx*.4,ry*.55,0,0,Math.PI*2
+  );
+
+  ctx.strokeStyle="#e0d2ff";
   ctx.lineWidth=1;
-  const steps=12;
-  for(let i=0;i<=steps;i++){
-    const y=h*i/steps;
-    const isMajor=i%3===0;
-    ctx.strokeStyle=isMajor?'rgba(180,200,255,.22)':'rgba(180,200,255,.08)';
-    ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke();
-  }
-  // left-side note labels (matching screenshot style)
-  ctx.fillStyle='rgba(220,230,255,.75)';
-  ctx.font='11px Arial';
-  ctx.textAlign='left';
-  for(let i=0;i<=steps;i+=1){
-    const midi=MAX-Math.round(i/steps*(MAX-MIN));
-    const name=noteName(midi);
-    // only show natural notes + a few accidentals to avoid clutter
-    if(name.includes('#')&&i%2!==0)continue;
-    ctx.fillText(name,8,h*i/steps+14);
-  }
+  ctx.stroke();
+ });
+
+ ctx.restore();
 }
 
-function draw(){
-  const w=stage.clientWidth,h=stage.clientHeight;
-  ctx.clearRect(0,0,w,h);
-  drawGrid(w,h);
+/* ===============================
+   12. 完整面部
+================================ */
 
-  // neon glowing trails (closer to Douyin video)
-  for(let hand=0;hand<2;hand++){
-    for(let f=0;f<5;f++){
-      const arr=points.filter(p=>p.hand===hand&&p.finger===f);
-      if(arr.length<2)continue;
+function drawFace(lms){
+ if(!lms||lms.length<478)return;
 
-      const col=colors[f];
+ ctx.save();
 
-      // outer soft glow
-      ctx.save();
-      ctx.lineCap='round';
-      ctx.lineJoin='round';
-      ctx.shadowColor=col;
-      ctx.shadowBlur=28;
-      ctx.strokeStyle=col;
-      ctx.globalAlpha=0.45;
-      ctx.lineWidth=10;
-      ctx.beginPath();
-      arr.forEach((p,i)=>{
-        if(i===0)ctx.moveTo(p.x,p.y);
-        else ctx.lineTo(p.x,p.y);
-      });
-      ctx.stroke();
-      ctx.restore();
+ drawFaceOutline(lms);
+ drawEars(lms);
+ drawEyebrows(lms);
 
-      // bright core
-      ctx.save();
-      ctx.lineCap='round';
-      ctx.lineJoin='round';
-      ctx.shadowColor=col;
-      ctx.shadowBlur=12;
-      ctx.strokeStyle=col;
-      ctx.globalAlpha=1;
-      ctx.lineWidth=4.5;
-      ctx.beginPath();
-      arr.forEach((p,i)=>{
-        if(i===0)ctx.moveTo(p.x,p.y);
-        else ctx.lineTo(p.x,p.y);
-      });
-      ctx.stroke();
+ drawEye(lms,LEFT_EYE,LEFT_IRIS);
+ drawEye(lms,RIGHT_EYE,RIGHT_IRIS);
 
-      // glowing tip
-      const p=arr[arr.length-1];
-      ctx.shadowBlur=18;
-      ctx.fillStyle=col;
-      ctx.beginPath();
-      ctx.arc(p.x,p.y,6,0,Math.PI*2);
-      ctx.fill();
+ drawNose(lms);
+ drawMouth(lms);
 
-      // small sparkle
-      ctx.shadowBlur=0;
-      ctx.fillStyle='#ffffff';
-      ctx.globalAlpha=0.9;
-      ctx.beginPath();
-      ctx.arc(p.x,p.y,2.2,0,Math.PI*2);
-      ctx.fill();
-      ctx.restore();
-    }
-  }
-
-  // vertical pink playhead during playback (matches the screenshot)
-  if(playbackTimer){
-    const total=Math.max(1,notes.length?notes[notes.length-1].time:1);
-    const x=Math.min(w,(performance.now()-playbackStart)/total*w);
-    ctx.save();
-    ctx.strokeStyle='#ff39ce';
-    ctx.shadowColor='#ff39ce';
-    ctx.shadowBlur=18;
-    ctx.lineWidth=3;
-    ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke();
-    // soft vertical bloom
-    ctx.globalAlpha=0.25;
-    ctx.lineWidth=10;
-    ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke();
-    ctx.restore();
-  }
+ ctx.restore();
 }
 
-function fingerExtended(lm,f,label){
-  if(f===0){
-    // thumb: compare tip vs joint horizontally
-    return label==='Right'?
-      lm[4].x<lm[3].x-.025:
-      lm[4].x>lm[3].x+.025;
-  }
-  return lm[tips[f]].y<lm[pips[f]].y-.015;
+/* ===============================
+   13. 面部平滑处理
+================================ */
+
+function stabilizeFace(current){
+ if(!current)return smoothFace;
+
+ if(!smoothFace||smoothFace.length!==current.length){
+  smoothFace=current.map(p=>({
+   x:p.x,y:p.y,z:p.z||0
+  }));
+  return smoothFace;
+ }
+
+ const factor=CONFIG.faceSmooth;
+
+ for(let i=0;i<current.length;i++){
+  smoothFace[i].x+=(current[i].x-smoothFace[i].x)*factor;
+  smoothFace[i].y+=(current[i].y-smoothFace[i].y)*factor;
+  smoothFace[i].z+=((current[i].z||0)-smoothFace[i].z)*factor;
+ }
+
+ return smoothFace;
 }
 
-function capture(f,x,y,hand,t){
-  const key=hand+':'+f;
-  const midi=getMidi(y);
-  const last=lastTriggers[key]||{midi:-1,time:0};
+/* ===============================
+   14. 模型初始化
+================================ */
 
-  points.push({x,y,hand,finger:f,time:t-recordStart});
-  if(points.length>6000)points.shift();
+async function loadModels(){
+ statusEl.textContent="正在加载 AI 模型...";
 
-  if(midi!==last.midi||t-last.time>300){
-    const event={
-      time:t-recordStart,
-      midi,x,y,hand,finger:f
-    };
-    notes.push(event);
-    lastTriggers[key]={midi,time:t};
+ const vision=await FilesetResolver.forVisionTasks(
+  "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm"
+ );
 
-    if(mode==='live')playNote(midi);
+ async function createAll(delegate){
+  const common={
+   runningMode:"VIDEO"
+  };
 
-    $('count').textContent=notes.length;
-  }
-}
-
-function onResults(result){
-  const now=performance.now();
-  frames++;
-
-  if(now-lastFrame>1000){
-    $('fps').textContent=frames+' FPS';
-    frames=0;lastFrame=now;
-  }
-
-  const found=result.multiHandLandmarks||[];
-  $('hands').textContent=found.length;
-
-  found.forEach((lm,hand)=>{
-    const label=result.multiHandedness?.[hand]?.label||'Right';
-    for(let f=0;f<5;f++){
-      if(fingerExtended(lm,f,label)){
-        if(active){  // 必须点击「开始」后才追踪
-          if(!recordStart)recordStart=now;
-          const tip=lm[tips[f]];
-          const x=(1-tip.x)*stage.clientWidth;
-          const y=tip.y*stage.clientHeight;
-          capture(f,x,y,hand,now);
-        }
-      }
-    }
+  const p=await PoseLandmarker.createFromOptions(vision,{
+   ...common,
+   baseOptions:{
+    modelAssetPath:
+    "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task",
+    delegate
+   },
+   numPoses:1,
+   minPoseDetectionConfidence:.5,
+   minPosePresenceConfidence:.5,
+   minTrackingConfidence:.5
   });
 
-  if(active && recordStart){
-    $('duration').textContent=((now-recordStart)/1000).toFixed(1)+'s';
+  const h=await HandLandmarker.createFromOptions(vision,{
+   ...common,
+   baseOptions:{
+    modelAssetPath:
+    "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
+    delegate
+   },
+   numHands:2,
+   minHandDetectionConfidence:.5,
+   minHandPresenceConfidence:.5,
+   minTrackingConfidence:.5
+  });
+
+  const f=await FaceLandmarker.createFromOptions(vision,{
+   ...common,
+   baseOptions:{
+    modelAssetPath:
+    "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
+    delegate
+   },
+   numFaces:1,
+   minFaceDetectionConfidence:.55,
+   minFacePresenceConfidence:.55,
+   minTrackingConfidence:.5,
+   outputFaceBlendshapes:true,
+   outputFacialTransformationMatrixes:true
+  });
+
+  return {p,h,f};
+ }
+
+ try{
+  const models=await createAll("GPU");
+  pose=models.p;
+  hands=models.h;
+  face=models.f;
+ }catch(gpuError){
+  console.warn("GPU初始化失败，切换CPU",gpuError);
+
+  [pose,hands,face].forEach(m=>{
+   if(m){
+    try{m.close()}catch(e){}
+   }
+  });
+
+  pose=hands=face=null;
+
+  const models=await createAll("CPU");
+  pose=models.p;
+  hands=models.h;
+  face=models.f;
+ }
+
+ statusEl.textContent="身体、双手、面部模型加载完成";
+}
+
+/* ===============================
+   15. 独立检测频率
+================================ */
+
+function detectModels(now){
+ if(video.readyState<2)return;
+
+ try{
+  if(now-lastPoseTime>=CONFIG.poseInterval){
+   lastPoseTime=now;
+
+   const result=pose.detectForVideo(video,now);
+
+   if(result.landmarks&&result.landmarks.length){
+    poseData=result.landmarks[0];
+    poseLastSeen=now;
+   }
   }
 
-  draw();
+  if(now-lastHandTime>=CONFIG.handInterval){
+   lastHandTime=now;
+
+   const result=hands.detectForVideo(video,now);
+
+   if(result.landmarks&&result.landmarks.length){
+    handData=result.landmarks;
+    handLastSeen=now;
+   }else if(now-handLastSeen>CONFIG.handHold){
+    handData=null;
+   }
+  }
+
+  if(now-lastFaceTime>=CONFIG.faceInterval){
+   lastFaceTime=now;
+
+   const result=face.detectForVideo(video,now);
+
+   if(result.faceLandmarks&&result.faceLandmarks.length){
+    faceData=stabilizeFace(result.faceLandmarks[0]);
+    faceLastSeen=now;
+   }
+  }
+
+ }catch(e){
+  console.error("模型检测错误:",e);
+ }
 }
+
+/* ===============================
+   16. 绘制及状态
+================================ */
+
+function render(){
+ if(!running)return;
+
+ const now=performance.now();
+
+ if(video.readyState>=2){
+  detectModels(now);
+  clearCanvas();
+
+  if(poseData&&now-poseLastSeen<CONFIG.poseHold){
+   drawBody(poseData);
+  }
+
+  if(handData&&now-handLastSeen<CONFIG.handHold){
+   handData.forEach((h,i)=>{
+    drawHand(h,i===0?C.hand1:C.hand2,i);
+   });
+  }
+
+  if(faceData&&now-faceLastSeen<CONFIG.faceHold){
+   drawFace(faceData);
+  }
+
+  const faceOK=faceData&&now-faceLastSeen<CONFIG.faceHold;
+  const handOK=handData&&now-handLastSeen<CONFIG.handHold;
+  const bodyOK=poseData&&now-poseLastSeen<CONFIG.poseHold;
+
+  statusEl.textContent=
+   `身体 ${bodyOK?"✓":"搜索中"} | 双手 ${handOK?"✓":"搜索中"} | 面部 ${faceOK?"✓":"搜索中"}`;
+ }
+
+ raf=requestAnimationFrame(render);
+}
+
+/* ===============================
+   17. 摄像头
+================================ */
 
 async function startCamera(){
-  try{
-    if(!navigator.mediaDevices?.getUserMedia)
-      throw Error('请使用 HTTPS 网站打开摄像头');
+ try{
+  startBtn.disabled=true;
+  statusEl.textContent="正在启动摄像头...";
 
-    stream=await navigator.mediaDevices.getUserMedia({
-      video:{
-        facingMode:'user',
-        width:{ideal:1280},
-        height:{ideal:720}
-      },
-      audio:false
-    });
-
-    video.srcObject=stream;
-    await video.play();
-
-    if(!window.Hands)
-      throw Error('MediaPipe 加载失败，请检查网络');
-
-    handsModel=new Hands({
-      locateFile:file=>
-      'https://cdn.jsdelivr.net/npm/@mediapipe/hands/'+file
-    });
-
-    handsModel.setOptions({
-      maxNumHands:2,
-      modelComplexity:1,
-      minDetectionConfidence:.65,
-      minTrackingConfidence:.6
-    });
-
-    handsModel.onResults(onResults);
-
-    running=true;
-    stage.classList.add('started');
-    $('status').textContent='● 摄像头已就绪，请点击「开始」';
-    $('cameraBtn').textContent='关闭摄像头';
-    $('startBtn').disabled=false;
-    $('startBtn').textContent='▶ 开始';
-
-    async function loop(){
-      if(!running)return;
-      if(video.readyState>=2){
-        try{await handsModel.send({image:video})}
-        catch(e){console.error(e)}
-      }
-      requestAnimationFrame(loop);
-    }
-    loop();
-    getAudio();
-
-  }catch(e){
-    alert('启动失败：'+e.message);
-    console.error(e);
+  if(!pose||!hands||!face){
+   await loadModels();
   }
+
+  stream=await navigator.mediaDevices.getUserMedia({
+   video:{
+    facingMode:"user",
+    width:{ideal:1280},
+    height:{ideal:720},
+    frameRate:{ideal:30,max:30}
+   },
+   audio:false
+  });
+
+  video.srcObject=stream;
+  await video.play();
+
+  await new Promise(resolve=>{
+   if(video.videoWidth>0)resolve();
+   else video.onloadedmetadata=resolve;
+  });
+
+  resizeCanvas();
+
+  running=true;
+
+  poseData=null;
+  handData=null;
+  faceData=null;
+  smoothFace=null;
+
+  lastPoseTime=0;
+  lastHandTime=0;
+  lastFaceTime=0;
+
+  stopBtn.disabled=false;
+
+  statusEl.textContent="摄像头启动成功，正在识别...";
+  render();
+
+ }catch(e){
+  console.error(e);
+
+  startBtn.disabled=false;
+
+  statusEl.textContent=
+   "启动失败："+(e.message||e.name);
+ }
 }
+
+/* ===============================
+   18. 停止与清理
+================================ */
 
 function stopCamera(){
-  running=false;
-  active=false;
-  if(stream)stream.getTracks().forEach(t=>t.stop());
+ running=false;
+ cancelAnimationFrame(raf);
+
+ if(stream){
+  stream.getTracks().forEach(t=>t.stop());
   stream=null;
-  video.srcObject=null;
-  if(handsModel){handsModel.close();handsModel=null}
-  stage.classList.remove('started');
-  $('cameraBtn').textContent='启动摄像头';
-  $('status').textContent='● 摄像头已关闭';
-  $('startBtn').disabled=true;
-  $('startBtn').textContent='▶ 开始';
-  $('startBtn').classList.add('pink');
-  $('startBtn').classList.remove('primary');
+ }
+
+ video.srcObject=null;
+
+ [pose,hands,face].forEach(m=>{
+  if(m){
+   try{m.close()}catch(e){}
+  }
+ });
+
+ pose=null;
+ hands=null;
+ face=null;
+
+ poseData=null;
+ handData=null;
+ faceData=null;
+ smoothFace=null;
+
+ clearCanvas();
+
+ startBtn.disabled=false;
+ stopBtn.disabled=true;
+
+ statusEl.textContent="已经停止";
 }
 
-$('cameraBtn').onclick=()=>{
-  if(running)stopCamera();
-  else startCamera();
-};
+startBtn.addEventListener("click",startCamera);
+stopBtn.addEventListener("click",stopCamera);
 
-// 点击「开始 / 停止」才真正开始追踪演奏
-$('startBtn').onclick=()=>{
-  if(!running){
-    alert('请先启动摄像头');
-    return;
-  }
-  active=!active;
-  if(active){
-    recordStart=performance.now();
-    $('startBtn').textContent='■ 停止';
-    $('startBtn').classList.remove('pink');
-    $('startBtn').classList.add('primary');
-    $('status').textContent='● 演奏中…';
-    getAudio();
-  }else{
-    $('startBtn').textContent='▶ 开始';
-    $('startBtn').classList.add('pink');
-    $('startBtn').classList.remove('primary');
-    $('status').textContent='● 已暂停，点击「开始」继续';
-  }
-};
+/* 页面初始化 */
 
-function setMode(m){
-  mode=m;
-  $('liveMode').classList.toggle('active',m==='live');
-  $('drawMode').classList.toggle('active',m==='record');
-
-  $('modeText').textContent=m==='live'?
-  '点击「开始」后，手指移动立即发声。':
-  '点击「开始」记录轨迹，结束后点「回放」聆听。';
-}
-
-$('liveMode').onclick=()=>setMode('live');
-$('drawMode').onclick=()=>setMode('record');
-
-function stopPlayback(){
-  if(playbackTimer){
-    clearInterval(playbackTimer);
-    playbackTimer=null;
-  }
-  $('progress').style.width='0%';
-}
-
-function playRecorded(){
-  if(!notes.length){
-    alert('请先绘画记录旋律');
-    return;
-  }
-
-  stopPlayback();
-  notes.sort((a,b)=>a.time-b.time);
-  getAudio();
-
-  playbackStart=performance.now();
-  playbackIndex=0;
-  const total=Math.max(1,notes[notes.length-1].time);
-
-  playbackTimer=setInterval(()=>{
-    const t=performance.now()-playbackStart;
-
-    while(playbackIndex<notes.length&&
-      notes[playbackIndex].time<=t){
-      playNote(notes[playbackIndex].midi);
-      playbackIndex++;
-    }
-
-    $('progress').style.width=
-      Math.min(100,t/total*100)+'%';
-
-    if(t>total+500)stopPlayback();
-  },12);
-}
-
-$('playBtn').onclick=playRecorded;
-
-$('clearBtn').onclick=()=>{
-  stopPlayback();
-  points=[];notes=[];lastTriggers={};
-  recordStart=0;
-  $('count').textContent=0;
-  $('current').textContent='—';
-  $('duration').textContent='0s';
-  draw();
-};
-
-$('saveBtn').onclick=()=>{
-  if(!notes.length){alert('没有旋律可以保存');return}
-  const data={
-    version:2,
-    notes,points,
-    scale:$('scale').value
-  };
-  const blob=new Blob(
-    [JSON.stringify(data,null,2)],
-    {type:'application/json'}
-  );
-  const a=document.createElement('a');
-  a.href=URL.createObjectURL(blob);
-  a.download='air-piano-melody.json';
-  a.click();
-  URL.revokeObjectURL(a.href);
-};
-
-$('loadBtn').onclick=()=>$('file').click();
-
-$('file').onchange=async e=>{
-  const file=e.target.files[0];
-  if(!file)return;
-  try{
-    const data=JSON.parse(await file.text());
-    if(!Array.isArray(data.notes)||!Array.isArray(data.points))
-      throw Error('文件格式不正确');
-    notes=data.notes;
-    points=data.points;
-    $('scale').value=data.scale||'C';
-    $('count').textContent=notes.length;
-    draw();
-    alert('旋律载入成功');
-  }catch(err){alert('载入失败：'+err.message)}
-  e.target.value='';
-};
-
-$('fullscreenBtn').onclick=async()=>{
-  try{
-    if(!document.fullscreenElement){
-      await document.documentElement.requestFullscreen();
-    }else{
-      await document.exitFullscreen();
-    }
-  }catch(e){
-    alert('浏览器不支持网页全屏，请使用浏览器菜单全屏');
-  }
-};
-
-document.addEventListener('fullscreenchange',()=>{
-  document.body.classList.toggle('fullscreen',!!document.fullscreenElement);
-  setTimeout(resize,150);
+loadModels().catch(e=>{
+ console.error(e);
+ statusEl.textContent="模型加载失败，请检查网络";
 });
 
-window.addEventListener('resize',resize);
-resize();
-setMode('live');
 </script>
 </body>
 </html>
