@@ -1,800 +1,734 @@
+
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>AI人体测量与3D人物生成</title>
+<title>AI 四肢动作捕捉 · 3D</title>
+
 <style>
 *{box-sizing:border-box}
-body{
- margin:0;background:#08111e;color:#fff;
- font-family:Arial,sans-serif;overflow:hidden
-}
-#app{height:100dvh;width:100%;position:relative}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#080d18;color:#eef4ff;font-family:Arial,"Microsoft YaHei",sans-serif}
+#app{width:100%;height:100%;display:flex;flex-direction:column}
+header{height:58px;flex-shrink:0;display:flex;align-items:center;justify-content:space-between;padding:0 18px;background:#101827;border-bottom:1px solid #26344b}
+header strong{font-size:16px;letter-spacing:1px}
+.status{font-size:12px;color:#9caec8}
+main{position:relative;flex:1;min-height:0}
 #scene{position:absolute;inset:0}
-#header{
- position:absolute;top:12px;left:12px;right:12px;
- z-index:5;display:flex;justify-content:space-between;
- gap:8px;align-items:flex-start;pointer-events:none
-}
-.panel{
- background:#101d2ee8;border:1px solid #334b68;
- border-radius:12px;padding:11px 13px;
- backdrop-filter:blur(12px)
-}
-#title{font-size:15px;font-weight:bold}
-#status{font-size:11px;color:#8fc7ff;margin-top:6px}
-#measure{
- position:absolute;top:85px;left:12px;z-index:5;
- width:150px;font-size:11px;line-height:1.9;
- color:#c7d7e9;pointer-events:none
-}
-#cameraBox{
- position:absolute;right:12px;bottom:85px;
- width:min(34vw,190px);aspect-ratio:4/3;
- border:1px solid #58708e;border-radius:12px;
- overflow:hidden;background:#111d2b;z-index:4
-}
-#video{
- width:100%;height:100%;object-fit:cover;
- transform:scaleX(-1)
-}
-#skeleton{
- position:absolute;inset:0;width:100%;height:100%;
- transform:scaleX(-1);pointer-events:none
-}
-#buttons{
- position:absolute;bottom:12px;left:10px;right:10px;
- display:flex;justify-content:center;gap:7px;z-index:6
-}
-button{
- border:1px solid #405675;border-radius:10px;
- background:#172b45;color:white;padding:12px 13px;
- font-size:12px
-}
-button.primary{background:#176bd3;border-color:#388fff}
-#hint{
- position:absolute;bottom:88px;left:12px;
- z-index:3;color:#9db1ca;font-size:11px;
- max-width:48%
-}
+#scene canvas{display:block;width:100%;height:100%}
+#cameraBox{position:absolute;right:14px;top:14px;width:min(30vw,220px);aspect-ratio:4/3;background:#111b2b;border:1px solid #34445e;border-radius:12px;overflow:hidden;z-index:3}
+#video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
+#cameraLabel{position:absolute;left:8px;bottom:7px;font-size:11px;background:#0009;padding:4px 7px;border-radius:5px}
+#measure{position:absolute;left:14px;top:14px;width:190px;background:#101827dd;border:1px solid #293b55;border-radius:12px;padding:12px;font-size:12px;z-index:2;backdrop-filter:blur(8px)}
+#measure h3{font-size:13px;margin:0 0 10px}
+.measure-row{display:flex;justify-content:space-between;margin:8px 0;color:#aebdd2}
+.measure-row b{color:#e9f2ff;font-weight:600}
+#hint{position:absolute;left:50%;bottom:18px;transform:translateX(-50%);padding:8px 13px;background:#101827dd;border:1px solid #293b55;border-radius:20px;font-size:12px;color:#aebdd2;white-space:nowrap;z-index:2}
+footer{flex-shrink:0;background:#101827;border-top:1px solid #26344b;padding:12px 14px;display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap}
+button,select{border:1px solid #354763;background:#1b2a40;color:white;padding:10px 16px;border-radius:9px;font-size:13px}
+button.primary{background:#2879ed;border-color:#2879ed}
+button:disabled{opacity:.5}
+button:active{transform:scale(.97)}
+#cameraError{position:absolute;z-index:5;left:50%;top:50%;transform:translate(-50%,-50%);width:min(85%,400px);padding:18px;background:#17243a;border:1px solid #425574;border-radius:12px;text-align:center;display:none;line-height:1.7}
 @media(max-width:600px){
- #measure{top:82px;width:125px;font-size:10px}
- #cameraBox{width:125px;bottom:85px}
- button{padding:11px 9px;font-size:11px}
- #hint{font-size:10px}
+ header{height:50px;padding:0 12px}
+ #measure{width:145px;padding:9px;font-size:11px}
+ #cameraBox{width:36vw;right:9px;top:9px}
+ footer{gap:7px;padding:9px}
+ button,select{padding:9px 11px;font-size:12px}
+ #hint{font-size:10px;bottom:10px}
 }
 </style>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"
+  }
+}
+</script>
 </head>
+
 <body>
 <div id="app">
- <div id="scene"></div>
+<header>
+  <strong>✦ AI 四肢动作捕捉</strong>
+  <span class="status" id="status">等待启动摄像头</span>
+</header>
 
- <div id="header">
-  <div class="panel">
-   <div id="title">⚔️ AI人体测量 · 3D人物生成</div>
-   <div id="status">正在初始化……</div>
+<main>
+  <div id="scene"></div>
+
+  <div id="measure">
+    <h3>身体尺寸识别</h3>
+    <div class="measure-row"><span>左上臂</span><b id="leftUpper">--</b></div>
+    <div class="measure-row"><span>左前臂</span><b id="leftFore">--</b></div>
+    <div class="measure-row"><span>右上臂</span><b id="rightUpper">--</b></div>
+    <div class="measure-row"><span>右前臂</span><b id="rightFore">--</b></div>
+    <div class="measure-row"><span>左大腿</span><b id="leftThigh">--</b></div>
+    <div class="measure-row"><span>左小腿</span><b id="leftShin">--</b></div>
+    <div class="measure-row"><span>右大腿</span><b id="rightThigh">--</b></div>
+    <div class="measure-row"><span>右小腿</span><b id="rightShin">--</b></div>
   </div>
-  <div class="panel" style="font-size:11px">
-   Three.js<br>Procedural Character
+
+  <div id="cameraBox">
+    <video id="video" autoplay muted playsinline></video>
+    <div id="cameraLabel">摄像头画面</div>
   </div>
- </div>
 
- <div id="measure" class="panel">
-  <b>身体测量数据</b><br>
-  肩宽：等待识别<br>
-  躯干：等待识别<br>
-  上臂：等待识别<br>
-  前臂：等待识别<br>
-  大腿：等待识别<br>
-  小腿：等待识别<br>
-  身高比例：等待识别
- </div>
+  <div id="hint">启动摄像头后，请让全身进入画面</div>
 
- <div id="hint">请站在摄像头前，尽量让头部、双手和双脚都出现在画面中。</div>
+  <div id="cameraError"></div>
+</main>
 
- <div id="cameraBox">
-  <video id="video" autoplay playsinline muted></video>
-  <canvas id="skeleton"></canvas>
- </div>
-
- <div id="buttons">
-  <button class="primary" id="start">启动摄像头</button>
-  <button id="stop">停止</button>
-  <button id="reset">重置人物</button>
-  <button id="rebuild">重新测量</button>
- </div>
+<footer>
+  <button class="primary" id="startBtn">启动摄像头</button>
+  <button id="stopBtn" disabled>停止识别</button>
+  <button id="resetBtn">重置视角</button>
+  <button id="rotateBtn">自动旋转：关</button>
+  <select id="quality">
+    <option value="0.7">性能优先</option>
+    <option value="1" selected>标准画质</option>
+    <option value="1.5">高画质</option>
+  </select>
+</footer>
 </div>
 
 <script type="module">
-import * as THREE from
-'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
-
-import {
- PoseLandmarker,FilesetResolver
-} from
-'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14';
-
-const $=id=>document.getElementById(id);
-const status=$('status');
-const video=$('video');
-const canvas=$('skeleton');
-const ctx=canvas.getContext('2d');
-
-let scene,camera,renderer,character;
-let landmarker=null,stream=null;
-let running=false,raf=0,lastTime=-1;
-let currentPose=null;
-let calibrated=false;
-let proportions=null;
-let lastMeasureTime=0;
-
-const V=(x=0,y=0,z=0)=>new THREE.Vector3(x,y,z);
-
-const colors={
- skin:0xe8bd9c,
- hair:0x11131c,
- robe:0x172d49,
- robe2:0x263f61,
- armor:0x45617e,
- gold:0xc7a05c,
- pants:0x111c2b,
- boot:0x33271e,
- sword:0xc9d7e5
-};
-
-function material(color,metalness=0,roughness=.7){
- return new THREE.MeshStandardMaterial({
-  color,metalness,roughness
- });
-}
-
-const mats={
- skin:material(colors.skin),
- hair:material(colors.hair),
- robe:material(colors.robe),
- robe2:material(colors.robe2),
- armor:material(colors.armor,.5,.4),
- gold:material(colors.gold,.7,.3),
- pants:material(colors.pants),
- boot:material(colors.boot),
- sword:material(colors.sword,.9,.2)
-};
-
-function initScene(){
- scene=new THREE.Scene();
- scene.background=new THREE.Color(0x08111e);
- scene.fog=new THREE.Fog(0x08111e,10,25);
-
- camera=new THREE.PerspectiveCamera(
-  36,innerWidth/innerHeight,.1,100
- );
- camera.position.set(0,2.2,9);
- camera.lookAt(0,1.65,0);
-
- renderer=new THREE.WebGLRenderer({antialias:true});
- renderer.setPixelRatio(Math.min(devicePixelRatio,2));
- renderer.setSize(innerWidth,innerHeight);
- renderer.shadowMap.enabled=true;
- renderer.shadowMap.type=THREE.PCFSoftShadowMap;
- renderer.outputColorSpace=THREE.SRGBColorSpace;
- renderer.toneMapping=THREE.ACESFilmicToneMapping;
- renderer.toneMappingExposure=1.2;
- $('scene').appendChild(renderer.domElement);
-
- scene.add(new THREE.HemisphereLight(0xc9e5ff,0x242031,2));
-
- const light=new THREE.DirectionalLight(0xffe2bd,3);
- light.position.set(4,8,5);
- light.castShadow=true;
- scene.add(light);
-
- const rim=new THREE.DirectionalLight(0x4c8dff,2);
- rim.position.set(-5,4,-4);
- scene.add(rim);
-
- const floor=new THREE.Mesh(
-  new THREE.CircleGeometry(5,64),
-  material(0x1b2b40,.2,.8)
- );
- floor.rotation.x=-Math.PI/2;
- floor.position.y=-.03;
- floor.receiveShadow=true;
- scene.add(floor);
-
- const grid=new THREE.GridHelper(12,24,0x34516e,0x1c2e45);
- grid.position.y=-.02;
- scene.add(grid);
-
- const ring=new THREE.Mesh(
-  new THREE.TorusGeometry(1.15,.012,8,80),
-  mats.gold
- );
- ring.rotation.x=Math.PI/2;
- ring.position.y=.005;
- scene.add(ring);
-
- // 先生成默认人物，识别成功后自动调整比例
- character=buildCharacter({
-  height:3.6,
-  shoulder:.48,
-  hip:.34,
-  torso:.82,
-  upperArm:.43,
-  forearm:.40,
-  thigh:.52,
-  shin:.49,
-  head:.23
- });
- scene.add(character);
-}
-
-function mesh(parent,geo,mat,name){
- const m=new THREE.Mesh(geo,mat);
- m.name=name;
- m.castShadow=true;
- m.receiveShadow=true;
- parent.add(m);
- return m;
-}
-
-function ball(parent,name,r,mat){
- return mesh(parent,new THREE.SphereGeometry(r,20,16),mat,name);
-}
-
-function bone(parent,name,r1,r2,mat){
- return mesh(parent,new THREE.CylinderGeometry(r2,r1,1,16),mat,name);
-}
-
-function box(parent,name,x,y,z,mat){
- return mesh(parent,new THREE.BoxGeometry(x,y,z),mat,name);
-}
-
-function connect(obj,a,b,rx=1,rz=1){
- const av=V(...a),bv=V(...b);
- const d=bv.clone().sub(av);
- obj.position.copy(av).add(bv).multiplyScalar(.5);
- obj.scale.set(rx,d.length(),rz);
- obj.quaternion.setFromUnitVectors(
-  V(0,1,0),d.clone().normalize()
- );
-}
-
-function buildCharacter(p){
- const root=new THREE.Group();
- root.name='GeneratedWuxiaCharacter';
-
- const parts={};
-
- // 按测量比例生成躯干
- const body=new THREE.Group();
- root.add(body);
- parts.body=body;
-
- const torso=mesh(body,
-  new THREE.CylinderGeometry(
-   p.shoulder*.49,p.hip*.57,p.torso,24
-  ),mats.robe,'torso');
- torso.position.y=p.torso/2+p.thigh+p.shin*.05;
-
- const chest=mesh(body,
-  new THREE.SphereGeometry(1,24,18),
-  mats.robe2,'chest');
- chest.scale.set(p.shoulder*.51,p.torso*.34,.19);
- chest.position.set(0,p.thigh+p.shin*.05+p.torso*.70,.02);
-
- const waist=mesh(body,
-  new THREE.CylinderGeometry(
-   p.hip*.54,p.hip*.62,.16,20
-  ),mats.gold,'belt');
- waist.position.y=p.thigh+p.shin*.05+.08;
-
- // 下摆
- const skirt=mesh(body,
-  new THREE.CylinderGeometry(
-   p.hip*.58,p.hip*.95,p.thigh*.85,24,1,true
-  ),mats.pants,'robe skirt');
- skirt.position.y=p.thigh*.55;
- skirt.material.side=THREE.DoubleSide;
-
- // 头颈
- const neck=bone(body,'neck',.075,.085,mats.skin);
- const head=ball(body,'head',p.head,mats.skin);
- const hair=ball(body,'hair',p.head*1.08,mats.hair);
- const bun=ball(body,'hair bun',p.head*.55,mats.hair);
-
- parts.neck=neck;
- parts.head=head;
- parts.hair=hair;
- parts.bun=bun;
-
- // 头部、颈部的初始位置
- const shoulderY=p.thigh+p.shin*.05+p.torso;
- const headY=shoulderY+p.head*1.6;
- head.position.set(0,headY,0);
- hair.position.set(0,headY+p.head*.3,-.025);
- bun.position.set(0,headY+p.head*.92,-.05);
- connect(neck,[0,shoulderY,0],[0,headY-p.head*.75,0]);
-
- // 面部眼睛
- for(const s of [-1,1]){
-  const eye=ball(body,'eye',p.head*.10,material(0x10131b));
-  eye.position.set(s*p.head*.32,headY,.18);
- }
-
- // 头发长束
- const pony=bone(body,'ponytail',p.head*.28,p.head*.17,mats.hair);
- connect(pony,[0,headY-p.head*.5,-.16],[0,headY-p.head*2.2,-.25]);
-
- // 肩甲
- for(const s of [-1,1]){
-  const sh=ball(body,'shoulder armor',p.shoulder*.20,mats.armor);
-  sh.position.set(s*p.shoulder*.48,shoulderY-.08,0);
-
-  const trim=ball(body,'gold shoulder detail',p.shoulder*.12,mats.gold);
-  trim.position.set(s*p.shoulder*.48,shoulderY-.02,.08);
- }
-
- // 手臂
- parts.arms={};
- for(const s of [-1,1]){
-  const group=new THREE.Group();
-  group.name=s===1?'right arm':'left arm';
-  body.add(group);
-
-  const upper=bone(group,'upper arm',.105,.085,mats.robe2);
-  const elbow=ball(group,'elbow',.09,mats.skin);
-  const lower=bone(group,'forearm',.08,.065,mats.armor);
-  const wrist=ball(group,'wrist',.065,mats.skin);
-  const hand=ball(group,'hand',.09,mats.skin);
-
-  const bracer=mesh(group,
-   new THREE.CylinderGeometry(.09,.075,.23,12),
-   mats.gold,'arm guard');
-
-  parts.arms[s]={upper,elbow,lower,wrist,hand,bracer};
- }
-
- // 腿部
- parts.legs={};
- for(const s of [-1,1]){
-  const group=new THREE.Group();
-  body.add(group);
-
-  const thigh=bone(group,'thigh',.14,.11,mats.pants);
-  const knee=ball(group,'knee',.105,mats.armor);
-  const shin=bone(group,'shin',.105,.075,mats.pants);
-  const ankle=ball(group,'ankle',.07,mats.skin);
-  const boot=box(group,'boot',.19,.15,.33,mats.boot);
-  const bootTop=box(group,'boot decoration',.19,.055,.19,mats.gold);
-
-  parts.legs[s]={thigh,knee,shin,ankle,boot,bootTop};
- }
-
- // 披风
- const cape=mesh(body,
-  new THREE.PlaneGeometry(p.shoulder*1.5,p.torso*1.4,8,8),
-  new THREE.MeshStandardMaterial({
-   color:0x101d34,side:THREE.DoubleSide
-  }),'cape');
- cape.position.set(0,shoulderY-p.torso*.6,-.24);
- cape.rotation.x=.08;
- parts.cape=cape;
-
- // 剑鞘
- const sheath=box(body,'sword sheath',.11,p.torso*1.1,.11,mats.boot);
- sheath.position.set(p.shoulder*.75,shoulderY-p.torso*.5,-.25);
- sheath.rotation.z=-.28;
-
- const sword=new THREE.Group();
- sword.name='sword';
- body.add(sword);
- parts.sword=sword;
-
- const handle=bone(sword,'sword handle',.035,.035,mats.boot);
- connect(handle,[.5,shoulderY*.85,.04],[.5,shoulderY*.85+.35,.04]);
-
- const blade=box(sword,'blade',.065,p.torso*1.35,.025,mats.sword);
- blade.position.set(.5,shoulderY*.85-.45,.04);
-
- const guard=box(sword,'guard',.26,.045,.08,mats.gold);
- guard.position.set(.5,shoulderY*.85,.04);
-
- root.userData={parts,proportions:p};
- return root;
-}
-
-// MediaPipe世界坐标转为Three.js坐标
-function convertLandmarks(world){
- const hip=(world[23].y+world[24].y)/2;
- const hipX=(world[23].x+world[24].x)/2;
- const hipZ=(world[23].z+world[24].z)/2;
-
- return world.map(p=>V(
-  p.x-hipX,
-  -(p.y-hip),
-  -(p.z-hipZ)
- ));
-}
-
-// 计算两点间距离
-function distance(a,b){
- return a.distanceTo(b);
-}
-
-// 从人体关键点计算比例
-function measureBody(world){
- const p=convertLandmarks(world);
-
- const midpoint=(a,b)=>p[a].clone().add(p[b]).multiplyScalar(.5);
-
- const shoulder=midpoint(11,12);
- const hip=midpoint(23,24);
- const ankle=midpoint(27,28);
- const nose=p[0];
-
- const bodyHeight=distance(nose,ankle);
-
- const shoulderWidth=distance(p[11],p[12]);
- const hipWidth=distance(p[23],p[24]);
-
- const torso=distance(shoulder,hip);
- const upperArm=(distance(p[11],p[13])+distance(p[12],p[14]))/2;
- const forearm=(distance(p[13],p[15])+distance(p[14],p[16]))/2;
- const thigh=(distance(p[23],p[25])+distance(p[24],p[26]))/2;
- const shin=(distance(p[25],p[27])+distance(p[26],p[28]))/2;
- const head=distance(nose,shoulder)*.62;
-
- const safe=(v,min,max)=>THREE.MathUtils.clamp(v,min,max);
-
- // 统一到游戏人物身高，保留各部位之间的相对比例
- const targetHeight=3.6;
- const scale=targetHeight/Math.max(bodyHeight,.3);
-
- return {
-  height:targetHeight,
-  shoulder:safe(shoulderWidth*scale,.34,.85),
-  hip:safe(hipWidth*scale,.24,.68),
-  torso:safe(torso*scale,.55,1.2),
-  upperArm:safe(upperArm*scale,.30,.72),
-  forearm:safe(forearm*scale,.28,.68),
-  thigh:safe(thigh*scale,.36,.82),
-  shin:safe(shin*scale,.32,.82),
-  head:safe(head*scale,.17,.32),
-  measuredHeight:bodyHeight,
-  raw:p
- };
-}
-
-function updateCharacterPose(measurements,screenLm){
- if(!character||!measurements)return;
-
- const u=character.userData.parts;
- const p=measurements.raw;
-
- // 用髋部作为角色的身体原点
- const h=p[23].clone().add(p[24]).multiplyScalar(.5);
- const targetHeight=3.6;
- const scale=targetHeight/Math.max(
-  distance(p[0],p[27].clone().add(p[28]).multiplyScalar(.5)),.3
- );
-
- // 将世界关键点映射到人物局部坐标
- const point=i=>{
-  const v=p[i].clone().sub(h).multiplyScalar(scale);
-  return [v.x,v.y,v.z];
- };
-
- const ls=point(11),rs=point(12);
- const le=point(13),re=point(14);
- const lw=point(15),rw=point(16);
- const lh=point(23),rh=point(24);
- const lk=point(25),rk=point(26);
- const la=point(27),ra=point(28);
-
- // 让脚底靠近地面
- const floorY=Math.min(la[1],ra[1]);
- const adjust=a=>[a[0],a[1]-floorY,a[2]];
-
- const Ls=adjust(ls),Rs=adjust(rs);
- const Le=adjust(le),Re=adjust(re);
- const Lw=adjust(lw),Rw=adjust(rw);
- const Lh=adjust(lh),Rh=adjust(rh);
- const Lk=adjust(lk),Rk=adjust(rk);
- const La=adjust(la),Ra=adjust(ra);
-
- const mid=(a,b)=>[
-  (a[0]+b[0])/2,
-  (a[1]+b[1])/2,
-  (a[2]+b[2])/2
- ];
-
- const centerShoulder=mid(Ls,Rs);
- const centerHip=mid(Lh,Rh);
-
- // 躯干随实际肩部和髋部位置变化
- const torsoCenter=mid(centerShoulder,centerHip);
- u.body.position.set(0,0,0);
- u.body.rotation.z=Math.atan2(
-  Rs[1]-Ls[1],Rs[0]-Ls[0]
- )*.35;
-
- // 根据肩宽和躯干长度实时调整衣服尺寸
- const shoulderWidth=distance(
-  V(...Ls),V(...Rs)
- );
- const torsoLength=distance(
-  V(...centerShoulder),V(...centerHip)
- );
-
- const torsoMesh=u.body.getObjectByName('torso');
- torsoMesh.scale.x=THREE.MathUtils.lerp(
-  torsoMesh.scale.x,
-  shoulderWidth/Math.max(measurements.shoulder,.01),.15
- );
-
- // 更新头颈位置
- const headY=centerShoulder[1]+measurements.head*1.2;
- u.head.position.set(centerShoulder[0],headY,centerShoulder[2]);
- u.hair.position.set(centerShoulder[0],headY+measurements.head*.3,centerShoulder[2]-.025);
- u.bun.position.set(centerShoulder[0],headY+measurements.head*.92,centerShoulder[2]-.05);
-
- connect(u.neck,
-  [centerShoulder[0],centerShoulder[1],centerShoulder[2]],
-  [centerShoulder[0],headY-measurements.head*.7,centerShoulder[2]]
- );
-
- // 上下臂
- function arm(side,s,e,w){
-  const a=u.arms[side];
-  connect(a.upper,s,e,.9,.9);
-  a.elbow.position.set(...e);
-  connect(a.lower,e,w,.8,.8);
-  a.wrist.position.set(...w);
-  a.hand.position.set(w[0],w[1]-.08,w[2]);
-  a.bracer.position.set(
-   (e[0]+w[0])/2,(e[1]+w[1])/2,(e[2]+w[2])/2
-  );
-  a.bracer.scale.y=distance(V(...e),V(...w))*.35;
- }
- arm(-1,Ls,Le,Lw);
- arm(1,Rs,Re,Rw);
-
- // 双腿
- function leg(side,h,k,a){
-  const part=u.legs[side];
-  connect(part.thigh,h,k,.95,.95);
-  part.knee.position.set(...k);
-  connect(part.shin,k,a,.85,.85);
-  part.ankle.position.set(...a);
-  part.boot.position.set(a[0],a[1]-.07,a[2]+.07);
-  part.bootTop.position.set(a[0],a[1]+.035,a[2]);
- }
- leg(-1,Lh,Lk,La);
- leg(1,Rh,Rk,Ra);
-
- // 让人物根据画面中的位置左右移动
- if(screenLm){
-  const hipScreen=(screenLm[23].x+screenLm[24].x)/2;
-  character.position.x=THREE.MathUtils.lerp(
-   character.position.x,(.5-hipScreen)*2.1,.15
-  );
- }
-
- // 身体朝向估计
- const shoulderAngle=Math.atan2(
-  Rs[2]-Ls[2],Rs[0]-Ls[0]
- );
- character.rotation.y=THREE.MathUtils.lerp(
-  character.rotation.y,shoulderAngle*.25,.12
- );
-}
-
-// 生成测量结果后，重新生成整个模型
-function rebuildCharacter(p){
- const old=character;
- const pos=old?old.position.clone():V();
- const rot=old?old.rotation.clone():new THREE.Euler();
-
- character=buildCharacter(p);
- character.position.copy(pos);
- character.rotation.copy(rot);
-
- if(old){
-  scene.remove(old);
-  old.traverse(o=>{
-   if(o.isMesh){
-    o.geometry.dispose();
-   }
-  });
- }
- scene.add(character);
- calibrated=true;
-}
-
-// 骨架可视化
-const links=[
- [11,12],[11,13],[13,15],[12,14],[14,16],
- [11,23],[12,24],[23,24],
- [23,25],[25,27],[24,26],[26,28],
- [0,11],[0,12]
-];
-
-function drawSkeleton(lm){
- const w=canvas.width=canvas.clientWidth*devicePixelRatio;
- const h=canvas.height=canvas.clientHeight*devicePixelRatio;
- ctx.clearRect(0,0,w,h);
- if(!lm)return;
-
- ctx.strokeStyle='#55dcff';
- ctx.lineWidth=2*devicePixelRatio;
- for(const [a,b] of links){
-  ctx.beginPath();
-  ctx.moveTo(lm[a].x*w,lm[a].y*h);
-  ctx.lineTo(lm[b].x*w,lm[b].y*h);
-  ctx.stroke();
- }
- ctx.fillStyle='#fff';
- for(const i of [0,11,12,13,14,15,16,23,24,25,26,27,28]){
-  ctx.beginPath();
-  ctx.arc(lm[i].x*w,lm[i].y*h,3*devicePixelRatio,0,Math.PI*2);
-  ctx.fill();
- }
-}
-
-function showMeasurements(p){
- $('measure').innerHTML=
- `<b>身体测量数据</b><br>
- 肩宽：${p.shoulder.toFixed(2)}<br>
- 胯宽：${p.hip.toFixed(2)}<br>
- 躯干：${p.torso.toFixed(2)}<br>
- 上臂：${p.upperArm.toFixed(2)}<br>
- 前臂：${p.forearm.toFixed(2)}<br>
- 大腿：${p.thigh.toFixed(2)}<br>
- 小腿：${p.shin.toFixed(2)}<br>
- 头部：${p.head.toFixed(2)}<br>
- 身高基准：3.60`;
-}
-
-async function setupLandmarker(){
- status.textContent='正在加载 AI 姿态识别模型……';
-
- const vision=await FilesetResolver.forVisionTasks(
-  'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm'
- );
-
- landmarker=await PoseLandmarker.createFromOptions(
-  vision,{
-   baseOptions:{
-    modelAssetPath:
-    'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/1/pose_landmarker_full.task',
-    delegate:'GPU'
-   },
-   runningMode:'VIDEO',
-   numPoses:1,
-   minPoseDetectionConfidence:.55,
-   minTrackingConfidence:.55
-  }
- );
-}
-
-async function start(){
- try{
-  if(running)return;
-
-  status.textContent='正在打开摄像头……';
-
-  stream=await navigator.mediaDevices.getUserMedia({
-   audio:false,
-   video:{
-    facingMode:'user',
-    width:{ideal:1280},
-    height:{ideal:720}
-   }
-  });
-
-  video.srcObject=stream;
-  await video.play();
-
-  if(!landmarker)await setupLandmarker();
-
-  running=true;
-  lastTime=-1;
-  status.textContent='识别中：请完整站在摄像头前';
-  loop();
-
- }catch(e){
-  console.error(e);
-  status.textContent='启动失败：'+e.message;
- }
-}
-
-function loop(){
- if(!running)return;
-
- if(video.readyState>=2&&video.currentTime!==lastTime){
-  lastTime=video.currentTime;
-
-  const result=landmarker.detectForVideo(
-   video,performance.now()
-  );
-
-  if(result.landmarks?.length){
-   const lm=result.landmarks[0];
-   const world=result.worldLandmarks?.[0];
-
-   drawSkeleton(lm);
-   currentPose=lm;
-
-   if(world){
-    const now=performance.now();
-
-    // 每隔一段时间重新测量，避免人物比例因抖动频繁变化
-    if(!proportions||!calibrated){
-     proportions=measureBody(world);
-     rebuildCharacter(proportions);
-     showMeasurements(proportions);
-     status.textContent='人体测量完成，已生成对应人物';
-     lastMeasureTime=now;
-    }
-
-    updateCharacterPose(proportions,lm);
-   }
-
-  }else{
-   drawSkeleton(null);
-   status.textContent='没有识别到完整人体，请调整站位';
-  }
- }
-
- raf=requestAnimationFrame(loop);
-}
-
-function stop(){
- running=false;
- cancelAnimationFrame(raf);
- if(stream){
-  stream.getTracks().forEach(t=>t.stop());
-  stream=null;
- }
- video.srcObject=null;
- ctx.clearRect(0,0,canvas.width,canvas.height);
- status.textContent='摄像头已停止';
-}
-
-function reset(){
- if(character){
-  character.position.set(0,0,0);
-  character.rotation.set(0,0,0);
- }
- status.textContent='人物位置已重置';
-}
-
-function recalibrate(){
- calibrated=false;
- proportions=null;
- status.textContent='请保持全身出现在摄像头中，正在等待重新测量';
-}
-
-$('start').addEventListener('click',start);
-$('stop').addEventListener('click',stop);
-$('reset').addEventListener('click',reset);
-$('rebuild').addEventListener('click',recalibrate);
-
-window.addEventListener('resize',()=>{
- if(!camera||!renderer)return;
- camera.aspect=innerWidth/innerHeight;
- camera.updateProjectionMatrix();
- renderer.setSize(innerWidth,innerHeight);
+import * as THREE from "three";
+import { PoseLandmarker, FilesetResolver }
+from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/+esm";
+
+/* ===============================
+   基础场景
+================================ */
+const sceneBox = document.getElementById("scene");
+const video = document.getElementById("video");
+const statusEl = document.getElementById("status");
+const hint = document.getElementById("hint");
+const errorBox = document.getElementById("cameraError");
+
+let renderer, scene, camera, poseLandmarker;
+let stream = null;
+let running = false;
+let rafId = 0;
+let lastVideoTime = -1;
+let autoRotate = false;
+
+scene = new THREE.Scene();
+scene.background = new THREE.Color(0x080d18);
+
+camera = new THREE.PerspectiveCamera(
+  45,
+  sceneBox.clientWidth / sceneBox.clientHeight,
+  0.1,
+  100
+);
+camera.position.set(0, 0.3, 7.5);
+
+renderer = new THREE.WebGLRenderer({
+  antialias: true,
+  alpha: false
+});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(sceneBox.clientWidth, sceneBox.clientHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+sceneBox.appendChild(renderer.domElement);
+
+scene.add(new THREE.HemisphereLight(0xbad7ff, 0x182033, 2.0));
+
+const keyLight = new THREE.DirectionalLight(0xffffff, 3);
+keyLight.position.set(3, 5, 6);
+scene.add(keyLight);
+
+const rimLight = new THREE.PointLight(0x258bff, 35, 15);
+rimLight.position.set(-3, 1, -2);
+scene.add(rimLight);
+
+/* 地面网格 */
+const grid = new THREE.GridHelper(12, 24, 0x28466d, 0x172a43);
+grid.position.y = -2.5;
+scene.add(grid);
+
+/* ===============================
+   四肢模型材质
+   不创建头、躯干或服装
+================================ */
+const skinMat = new THREE.MeshStandardMaterial({
+  color: 0xd9a77e,
+  roughness: 0.48,
+  metalness: 0.02
 });
 
-function animate(){
- requestAnimationFrame(animate);
- if(renderer&&scene&&camera)renderer.render(scene,camera);
+const armMat = new THREE.MeshStandardMaterial({
+  color: 0x4c9dff,
+  roughness: 0.3,
+  metalness: 0.35
+});
+
+const legMat = new THREE.MeshStandardMaterial({
+  color: 0x3d6fc4,
+  roughness: 0.38,
+  metalness: 0.25
+});
+
+const jointMat = new THREE.MeshStandardMaterial({
+  color: 0x9ccaff,
+  emissive: 0x102b50,
+  roughness: 0.25,
+  metalness: 0.4
+});
+
+const footMat = new THREE.MeshStandardMaterial({
+  color: 0x192c49,
+  roughness: 0.35,
+  metalness: 0.3
+});
+
+/* ===============================
+   几何体工具
+================================ */
+function makeBone(parent, material, radius) {
+  const geometry = new THREE.CylinderGeometry(
+    radius * 0.82,
+    radius,
+    1,
+    16,
+    1
+  );
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  parent.add(mesh);
+  return mesh;
 }
 
-initScene();
+function makeJoint(parent, radius = 0.075) {
+  const mesh = new THREE.Mesh(
+    new THREE.SphereGeometry(radius, 16, 16),
+    jointMat
+  );
+  parent.add(mesh);
+  return mesh;
+}
+
+function makePalm(parent) {
+  const group = new THREE.Group();
+
+  const palm = new THREE.Mesh(
+    new THREE.SphereGeometry(0.105, 16, 12),
+    skinMat
+  );
+  palm.scale.set(0.8, 1.25, 0.55);
+  group.add(palm);
+
+  // 简化手指：四根手指和拇指
+  for (let i = 0; i < 4; i++) {
+    const finger = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.018, 0.022, 0.105, 8),
+      skinMat
+    );
+    finger.position.set((i - 1.5) * 0.035, 0.13, 0);
+    finger.rotation.z = (i - 1.5) * -0.08;
+    group.add(finger);
+  }
+
+  const thumb = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.019, 0.023, 0.09, 8),
+    skinMat
+  );
+  thumb.position.set(-0.095, 0.015, 0);
+  thumb.rotation.z = -0.75;
+  group.add(thumb);
+
+  parent.add(group);
+  return group;
+}
+
+function makeFoot(parent) {
+  const foot = new THREE.Mesh(
+    new THREE.SphereGeometry(0.13, 16, 12),
+    footMat
+  );
+  foot.scale.set(0.7, 0.55, 1.65);
+  parent.add(foot);
+  return foot;
+}
+
+/* ===============================
+   创建四肢
+   仅有双臂和双腿
+================================ */
+function createLimbSet(side, type) {
+  const group = new THREE.Group();
+  scene.add(group);
+
+  const isArm = type === "arm";
+  const mainMat = isArm ? armMat : legMat;
+  const radius = isArm ? 0.085 : 0.115;
+
+  const upper = makeBone(group, mainMat, radius);
+  const lower = makeBone(group, mainMat, radius * 0.82);
+  const end = makeBone(group, skinMat, radius * 0.45);
+
+  const jointA = makeJoint(group, radius * 0.95);
+  const jointB = makeJoint(group, radius * 0.9);
+  const jointC = makeJoint(group, radius * 0.75);
+
+  let palm = null;
+  let foot = null;
+
+  if (isArm) {
+    palm = makePalm(group);
+  } else {
+    foot = makeFoot(group);
+  }
+
+  return {
+    side,
+    type,
+    group,
+    upper,
+    lower,
+    end,
+    jointA,
+    jointB,
+    jointC,
+    palm,
+    foot,
+    lengths: { upper: 1, lower: 1, end: 0.2 }
+  };
+}
+
+const limbs = {
+  leftArm: createLimbSet("left", "arm"),
+  rightArm: createLimbSet("right", "arm"),
+  leftLeg: createLimbSet("left", "leg"),
+  rightLeg: createLimbSet("right", "leg")
+};
+
+/* ===============================
+   骨骼更新工具
+================================ */
+const tempDirection = new THREE.Vector3();
+const upVector = new THREE.Vector3(0, 1, 0);
+
+function setBone(mesh, start, end) {
+  const direction = new THREE.Vector3().subVectors(end, start);
+  const length = direction.length();
+
+  if (length < 0.001) {
+    mesh.visible = false;
+    return;
+  }
+
+  mesh.visible = true;
+  mesh.position.copy(start).add(end).multiplyScalar(0.5);
+  mesh.quaternion.setFromUnitVectors(
+    upVector,
+    direction.normalize()
+  );
+  mesh.scale.set(1, length, 1);
+}
+
+function setJoint(mesh, point) {
+  mesh.position.copy(point);
+  mesh.visible = true;
+}
+
+/* ===============================
+   手掌和脚掌方向
+================================ */
+function orientPalm(palm, wrist, finger) {
+  palm.position.copy(wrist);
+
+  const direction = new THREE.Vector3()
+    .subVectors(finger, wrist);
+
+  if (direction.length() > 0.001) {
+    palm.quaternion.setFromUnitVectors(
+      new THREE.Vector3(0, 1, 0),
+      direction.normalize()
+    );
+  }
+}
+
+function orientFoot(foot, ankle, toe) {
+  foot.position.copy(ankle);
+
+  const direction = new THREE.Vector3()
+    .subVectors(toe, ankle);
+
+  if (direction.length() > 0.001) {
+    foot.quaternion.setFromUnitVectors(
+      new THREE.Vector3(0, 0, 1),
+      direction.normalize()
+    );
+  }
+}
+
+/* ===============================
+   MediaPipe 坐标转换
+================================ */
+function worldPoint(landmark, scale = 2.7) {
+  return new THREE.Vector3(
+    landmark.x * scale,
+    -landmark.y * scale,
+    -landmark.z * scale
+  );
+}
+
+function distance(a, b) {
+  return a.distanceTo(b);
+}
+
+function smoothPoint(oldPoint, newPoint, amount = 0.42) {
+  if (!oldPoint) return newPoint.clone();
+  return oldPoint.clone().lerp(newPoint, amount);
+}
+
+const smoothCache = {};
+
+function getSmoothPoint(name, point) {
+  smoothCache[name] = smoothPoint(
+    smoothCache[name],
+    point,
+    0.42
+  );
+  return smoothCache[name];
+}
+
+/* ===============================
+   测量和显示身体比例
+================================ */
+function showMeasure(id, value) {
+  document.getElementById(id).textContent =
+    value.toFixed(2) + " m";
+}
+
+function updateMeasurements(p) {
+  showMeasure("leftUpper", distance(p.ls, p.le));
+  showMeasure("leftFore", distance(p.le, p.lw));
+  showMeasure("rightUpper", distance(p.rs, p.re));
+  showMeasure("rightFore", distance(p.re, p.rw));
+  showMeasure("leftThigh", distance(p.lh, p.lk));
+  showMeasure("leftShin", distance(p.lk, p.la));
+  showMeasure("rightThigh", distance(p.rh, p.rk));
+  showMeasure("rightShin", distance(p.rk, p.ra));
+}
+
+/* ===============================
+   更新单条肢体
+================================ */
+function updateArm(limb, shoulder, elbow, wrist, finger) {
+  setBone(limb.upper, shoulder, elbow);
+  setBone(limb.lower, elbow, wrist);
+  setBone(limb.end, wrist, finger);
+
+  setJoint(limb.jointA, shoulder);
+  setJoint(limb.jointB, elbow);
+  setJoint(limb.jointC, wrist);
+
+  orientPalm(limb.palm, wrist, finger);
+}
+
+function updateLeg(limb, hip, knee, ankle, toe) {
+  setBone(limb.upper, hip, knee);
+  setBone(limb.lower, knee, ankle);
+
+  // 脚踝到脚尖的连接段
+  setBone(limb.end, ankle, toe);
+
+  setJoint(limb.jointA, hip);
+  setJoint(limb.jointB, knee);
+  setJoint(limb.jointC, ankle);
+
+  orientFoot(limb.foot, ankle, toe);
+}
+
+/* ===============================
+   核心姿态更新
+   33个关键点：
+   肩 11/12
+   肘 13/14
+   腕 15/16
+   手指 19/20
+   髋 23/24
+   膝 25/26
+   踝 27/28
+   脚尖 31/32
+================================ */
+function updateCharacterPose(world) {
+  if (!world || world.length < 33) return;
+
+  const point = (index, name) =>
+    getSmoothPoint(name, worldPoint(world[index]));
+
+  const p = {
+    ls: point(11, "ls"),
+    rs: point(12, "rs"),
+    le: point(13, "le"),
+    re: point(14, "re"),
+    lw: point(15, "lw"),
+    rw: point(16, "rw"),
+
+    lh: point(23, "lh"),
+    rh: point(24, "rh"),
+    lk: point(25, "lk"),
+    rk: point(26, "rk"),
+    la: point(27, "la"),
+    ra: point(28, "ra"),
+
+    lf: point(19, "lf"),
+    rf: point(20, "rf"),
+    lt: point(31, "lt"),
+    rt: point(32, "rt")
+  };
+
+  // 手指与脚尖的方向稍作延伸，避免模型过短
+  const leftFinger = p.lw.clone().lerp(p.lf, 1.5);
+  const rightFinger = p.rw.clone().lerp(p.rf, 1.5);
+
+  const leftToe = p.la.clone().lerp(p.lt, 1.7);
+  const rightToe = p.ra.clone().lerp(p.rt, 1.7);
+
+  updateArm(
+    limbs.leftArm,
+    p.ls,
+    p.le,
+    p.lw,
+    leftFinger
+  );
+
+  updateArm(
+    limbs.rightArm,
+    p.rs,
+    p.re,
+    p.rw,
+    rightFinger
+  );
+
+  updateLeg(
+    limbs.leftLeg,
+    p.lh,
+    p.lk,
+    p.la,
+    leftToe
+  );
+
+  updateLeg(
+    limbs.rightLeg,
+    p.rh,
+    p.rk,
+    p.ra,
+    rightToe
+  );
+
+  updateMeasurements(p);
+
+  hint.textContent = "✓ 已识别人体四肢，正在实时跟随动作";
+  statusEl.textContent = "动作捕捉运行中";
+}
+
+/* ===============================
+   摄像头和姿态识别
+================================ */
+async function initializePose() {
+  statusEl.textContent = "正在加载 AI 姿态识别模型…";
+
+  const vision = await FilesetResolver.forVisionTasks(
+    "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm"
+  );
+
+  poseLandmarker = await PoseLandmarker.createFromOptions(
+    vision,
+    {
+      baseOptions: {
+        modelAssetPath:
+          "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/1/pose_landmarker_full.task",
+        delegate: "GPU"
+      },
+      runningMode: "VIDEO",
+      numPoses: 1,
+      minPoseDetectionConfidence: 0.5,
+      minPosePresenceConfidence: 0.5,
+      minTrackingConfidence: 0.5
+    }
+  );
+}
+
+async function startCamera() {
+  try {
+    errorBox.style.display = "none";
+
+    if (!navigator.mediaDevices ||
+        !navigator.mediaDevices.getUserMedia) {
+      throw new Error(
+        "当前页面无法访问摄像头。请使用 HTTPS 或 localhost 打开。"
+      );
+    }
+
+    document.getElementById("startBtn").disabled = true;
+    statusEl.textContent = "正在请求摄像头权限…";
+
+    stream = await navigator.mediaDevices.getUserMedia({
+      audio: false,
+      video: {
+        facingMode: "user",
+        width: { ideal: 1280 },
+        height: { ideal: 720 }
+      }
+    });
+
+    video.srcObject = stream;
+    await video.play();
+
+    await initializePose();
+
+    running = true;
+    lastVideoTime = -1;
+
+    document.getElementById("stopBtn").disabled = false;
+    statusEl.textContent = "摄像头已启动";
+
+    detectLoop();
+  } catch (error) {
+    console.error(error);
+    document.getElementById("startBtn").disabled = false;
+    statusEl.textContent = "启动失败";
+
+    errorBox.style.display = "block";
+    errorBox.textContent =
+      "摄像头或 AI 模型启动失败：" +
+      error.message +
+      "。请检查摄像头权限和网络连接。";
+  }
+}
+
+function detectLoop() {
+  if (!running) return;
+
+  rafId = requestAnimationFrame(detectLoop);
+
+  if (
+    poseLandmarker &&
+    video.readyState >= 2 &&
+    video.currentTime !== lastVideoTime
+  ) {
+    lastVideoTime = video.currentTime;
+
+    try {
+      const result = poseLandmarker.detectForVideo(
+        video,
+        performance.now()
+      );
+
+      if (
+        result.worldLandmarks &&
+        result.worldLandmarks.length > 0
+      ) {
+        updateCharacterPose(result.worldLandmarks[0]);
+      } else {
+        statusEl.textContent = "未检测到人体";
+        hint.textContent = "请站到摄像头前，并让四肢进入画面";
+      }
+    } catch (e) {
+      console.error("姿态识别错误", e);
+    }
+  }
+}
+
+/* ===============================
+   停止摄像头
+================================ */
+function stopCamera() {
+  running = false;
+  cancelAnimationFrame(rafId);
+
+  if (stream) {
+    stream.getTracks().forEach(track => track.stop());
+    stream = null;
+  }
+
+  video.srcObject = null;
+
+  if (poseLandmarker) {
+    poseLandmarker.close();
+    poseLandmarker = null;
+  }
+
+  document.getElementById("startBtn").disabled = false;
+  document.getElementById("stopBtn").disabled = true;
+
+  statusEl.textContent = "识别已停止";
+  hint.textContent = "点击启动摄像头，重新开始动作捕捉";
+}
+
+/* ===============================
+   视角控制
+================================ */
+function resetView() {
+  camera.position.set(0, 0.3, 7.5);
+  camera.lookAt(0, 0, 0);
+}
+
+document.getElementById("startBtn")
+  .addEventListener("click", startCamera);
+
+document.getElementById("stopBtn")
+  .addEventListener("click", stopCamera);
+
+document.getElementById("resetBtn")
+  .addEventListener("click", resetView);
+
+document.getElementById("rotateBtn")
+  .addEventListener("click", event => {
+    autoRotate = !autoRotate;
+    event.target.textContent =
+      "自动旋转：" + (autoRotate ? "开" : "关");
+  });
+
+document.getElementById("quality")
+  .addEventListener("change", event => {
+    const value = Number(event.target.value);
+    renderer.setPixelRatio(
+      Math.min(window.devicePixelRatio * value, 2)
+    );
+  });
+
+/* ===============================
+   渲染循环
+================================ */
+function animate() {
+  requestAnimationFrame(animate);
+
+  if (autoRotate) {
+    Object.values(limbs).forEach(limb => {
+      limb.group.rotation.y += 0.0015;
+    });
+  }
+
+  renderer.render(scene, camera);
+}
 animate();
+
+/* ===============================
+   屏幕尺寸变化
+================================ */
+window.addEventListener("resize", () => {
+  const width = sceneBox.clientWidth;
+  const height = sceneBox.clientHeight;
+
+  camera.aspect = width / height;
+  camera.updateProjectionMatrix();
+
+  renderer.setSize(width, height);
+});
+
+/* 页面关闭时释放摄像头 */
+window.addEventListener("beforeunload", stopCamera);
+
 </script>
 </body>
 </html>
