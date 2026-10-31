@@ -4,735 +4,567 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>AI 四肢动作捕捉 3D</title>
+<title>3D 四肢动作捕捉系统</title>
 
 <style>
 *{box-sizing:border-box}
-html,body{
- margin:0;width:100%;height:100%;overflow:hidden;
- background:#080d18;color:#eef4ff;
- font-family:Arial,"Microsoft YaHei",sans-serif
+body{
+  margin:0;
+  overflow:hidden;
+  background:#080d18;
+  color:#fff;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
 }
-#app{height:100%;display:flex;flex-direction:column}
-header{
- height:55px;flex-shrink:0;display:flex;
- align-items:center;justify-content:space-between;
- padding:0 16px;background:#101827;
- border-bottom:1px solid #26344b
+#app{position:relative;width:100vw;height:100dvh;overflow:hidden}
+#three{position:absolute;inset:0}
+#video{
+  position:absolute;
+  right:14px;
+  top:76px;
+  width:min(31vw,250px);
+  aspect-ratio:4/3;
+  object-fit:cover;
+  border:1px solid #53657d;
+  border-radius:13px;
+  background:#101827;
+  z-index:3;
 }
-header strong{font-size:15px}
-.status{font-size:12px;color:#9caec8}
-main{position:relative;flex:1;min-height:0}
-#scene{position:absolute;inset:0}
-#scene canvas{display:block}
-#cameraBox{
- position:absolute;right:12px;top:12px;
- width:min(32vw,220px);aspect-ratio:4/3;
- background:#111b2b;border:1px solid #34445e;
- border-radius:12px;overflow:hidden;z-index:3
-}
-#video{width:100%;height:100%;object-fit:cover}
 #video.front-camera{transform:scaleX(-1)}
 #video.back-camera{transform:scaleX(1)}
-#cameraLabel{
- position:absolute;left:8px;bottom:7px;
- font-size:11px;background:#0009;
- padding:4px 7px;border-radius:5px
+.top{
+  position:absolute;z-index:5;top:14px;left:14px;
+  padding:12px 15px;border-radius:12px;
+  background:#101b2cdd;border:1px solid #34445c;
 }
-#measure{
- position:absolute;left:12px;top:12px;width:185px;
- background:#101827e8;border:1px solid #293b55;
- border-radius:12px;padding:11px;font-size:12px;
- z-index:2;backdrop-filter:blur(8px)
+.top strong{font-size:15px}
+.top small{display:block;color:#9eacc1;margin-top:5px}
+#status{
+  position:absolute;z-index:5;left:14px;top:91px;
+  padding:8px 11px;border-radius:9px;
+  background:#101b2cdd;color:#a8e5c4;font-size:12px;
 }
-#measure h3{font-size:13px;margin:0 0 10px}
-.measure-row{
- display:flex;justify-content:space-between;
- margin:8px 0;color:#aebdd2
+#info{
+  position:absolute;z-index:4;left:14px;bottom:120px;
+  padding:11px 13px;border-radius:11px;
+  background:#101b2cdd;border:1px solid #34445c;
+  color:#cbd6e6;font-size:12px;line-height:1.8;
 }
-.measure-row b{color:#e9f2ff}
-#hint{
- position:absolute;left:50%;bottom:15px;
- transform:translateX(-50%);
- padding:8px 13px;background:#101827dd;
- border:1px solid #293b55;border-radius:20px;
- font-size:12px;color:#aebdd2;
- white-space:nowrap;z-index:2
+.controls{
+  position:absolute;z-index:6;bottom:0;left:0;right:0;
+  display:flex;justify-content:center;align-items:center;
+  flex-wrap:wrap;gap:9px;padding:13px;
+  background:linear-gradient(transparent,#080d18 25%);
 }
-#cameraError{
- position:absolute;z-index:5;left:50%;top:50%;
- transform:translate(-50%,-50%);
- width:min(88%,400px);padding:18px;
- background:#17243a;border:1px solid #425574;
- border-radius:12px;text-align:center;
- display:none;line-height:1.7
+button{
+  border:1px solid #425675;
+  color:#fff;background:#17263b;
+  border-radius:10px;padding:11px 15px;
+  font-size:13px;font-weight:600;
+  cursor:pointer;
 }
-footer{
- flex-shrink:0;background:#101827;
- border-top:1px solid #26344b;
- padding:11px;display:flex;align-items:center;
- justify-content:center;gap:8px;flex-wrap:wrap
-}
-button,select{
- border:1px solid #354763;background:#1b2a40;
- color:white;padding:10px 13px;border-radius:9px;
- font-size:12px
-}
-button.primary{background:#2879ed;border-color:#2879ed}
-button:disabled{opacity:.5}
-button:active{transform:scale(.97)}
+button.primary{background:#2563eb;border-color:#4382ff}
+button:active{transform:scale(.96)}
+button:disabled{opacity:.4}
 @media(max-width:600px){
- header{height:48px;padding:0 10px}
- #measure{width:145px;padding:8px;font-size:10px}
- #cameraBox{width:35vw;right:8px;top:8px}
- footer{gap:6px;padding:8px}
- button,select{padding:9px 10px;font-size:11px}
- #hint{font-size:10px;bottom:8px}
+  .top{top:10px;left:10px;padding:9px 11px}
+  #video{top:75px;right:10px;width:37vw}
+  #status{top:83px;left:10px}
+  #info{left:10px;bottom:145px;font-size:11px}
+  .controls{gap:7px;padding:10px 7px}
+  button{padding:10px 11px;font-size:12px}
 }
 </style>
 
 <script type="importmap">
 {
- "imports":{
-  "three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"
- }
+  "imports":{
+    "three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"
+  }
 }
 </script>
 </head>
 
 <body>
 <div id="app">
+  <div id="three"></div>
 
-<header>
- <strong>✦ AI 四肢动作捕捉</strong>
- <span class="status" id="status">等待启动摄像头</span>
-</header>
+  <div class="top">
+    <strong>3D 四肢动作捕捉</strong>
+    <small>实时骨骼识别 · 程序化模型</small>
+  </div>
 
-<main>
- <div id="scene"></div>
+  <div id="status">等待启动摄像头</div>
 
- <div id="measure">
-  <h3>四肢尺寸识别</h3>
-  <div class="measure-row"><span>左上臂</span><b id="leftUpper">--</b></div>
-  <div class="measure-row"><span>左前臂</span><b id="leftFore">--</b></div>
-  <div class="measure-row"><span>右上臂</span><b id="rightUpper">--</b></div>
-  <div class="measure-row"><span>右前臂</span><b id="rightFore">--</b></div>
-  <div class="measure-row"><span>左大腿</span><b id="leftThigh">--</b></div>
-  <div class="measure-row"><span>左小腿</span><b id="leftShin">--</b></div>
-  <div class="measure-row"><span>右大腿</span><b id="rightThigh">--</b></div>
-  <div class="measure-row"><span>右小腿</span><b id="rightShin">--</b></div>
- </div>
+  <video id="video" autoplay playsinline muted></video>
 
- <div id="cameraBox">
-  <video id="video" autoplay muted playsinline></video>
-  <div id="cameraLabel">前置摄像头</div>
- </div>
+  <div id="info">
+    左臂：等待识别<br>
+    右臂：等待识别<br>
+    左腿：等待识别<br>
+    右腿：等待识别
+  </div>
 
- <div id="hint">启动摄像头后，请让全身进入画面</div>
- <div id="cameraError"></div>
-</main>
-
-<footer>
- <button class="primary" id="startBtn">启动摄像头</button>
- <button id="switchCameraBtn">切换后置摄像头</button>
- <button id="stopBtn" disabled>停止识别</button>
- <button id="resetBtn">重置视角</button>
- <button id="rotateBtn">自动旋转：关</button>
- <select id="quality">
-  <option value="0.7">性能优先</option>
-  <option value="1" selected>标准画质</option>
-  <option value="1.5">高画质</option>
- </select>
-</footer>
-
+  <div class="controls">
+    <button class="primary" id="startBtn">启动摄像头</button>
+    <button id="frontBtn">前置摄像头</button>
+    <button id="backBtn">后置摄像头</button>
+    <button id="stopBtn">停止识别</button>
+    <button id="resetBtn">重置视角</button>
+    <button id="rotateBtn">自动旋转：关</button>
+  </div>
 </div>
 
 <script type="module">
 import * as THREE from "three";
 import {
- PoseLandmarker,
- FilesetResolver
-} from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/+esm";
-
-/* ==============================
-   页面和状态
-============================== */
-const sceneBox=document.getElementById("scene");
-const video=document.getElementById("video");
-const statusEl=document.getElementById("status");
-const hint=document.getElementById("hint");
-const errorBox=document.getElementById("cameraError");
-
-let stream=null;
-let running=false;
-let cameraFacing="user";
-let poseLandmarker=null;
-let rafId=0;
-let lastVideoTime=-1;
-let autoRotate=false;
-let modelLoading=false;
-
-/* ==============================
-   THREE 场景
-============================== */
-const scene=new THREE.Scene();
-scene.background=new THREE.Color(0x080d18);
-
-const camera=new THREE.PerspectiveCamera(
- 45,sceneBox.clientWidth/sceneBox.clientHeight,0.1,100
-);
-camera.position.set(0,0.3,7.5);
-camera.lookAt(0,0,0);
-
-const renderer=new THREE.WebGLRenderer({
- antialias:true,
- alpha:false
-});
-renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
-renderer.setSize(sceneBox.clientWidth,sceneBox.clientHeight);
-renderer.shadowMap.enabled=true;
-renderer.shadowMap.type=THREE.PCFSoftShadowMap;
-sceneBox.appendChild(renderer.domElement);
-
-scene.add(new THREE.HemisphereLight(0xbad7ff,0x182033,2));
-
-const keyLight=new THREE.DirectionalLight(0xffffff,3);
-keyLight.position.set(3,5,6);
-scene.add(keyLight);
-
-const rimLight=new THREE.PointLight(0x258bff,35,15);
-rimLight.position.set(-3,1,-2);
-scene.add(rimLight);
-
-const grid=new THREE.GridHelper(12,24,0x28466d,0x172a43);
-grid.position.y=-2.5;
-scene.add(grid);
-
-/* ==============================
-   材质
-============================== */
-const skinMat=new THREE.MeshStandardMaterial({
- color:0xd9a77e,roughness:0.48
-});
-const armMat=new THREE.MeshStandardMaterial({
- color:0x4c9dff,roughness:0.3,metalness:0.35
-});
-const legMat=new THREE.MeshStandardMaterial({
- color:0x3d6fc4,roughness:0.38,metalness:0.25
-});
-const jointMat=new THREE.MeshStandardMaterial({
- color:0x9ccaff,emissive:0x102b50
-});
-const footMat=new THREE.MeshStandardMaterial({
- color:0x192c49,roughness:0.35,metalness:0.3
-});
-
-/* ==============================
-   3D 几何工具
-============================== */
-function makeBone(parent,material,radius){
- const mesh=new THREE.Mesh(
-  new THREE.CylinderGeometry(radius*.82,radius,1,16),
-  material
- );
- mesh.castShadow=true;
- mesh.receiveShadow=true;
- parent.add(mesh);
- return mesh;
-}
-
-function makeJoint(parent,radius=.075){
- const mesh=new THREE.Mesh(
-  new THREE.SphereGeometry(radius,16,16),
-  jointMat
- );
- parent.add(mesh);
- return mesh;
-}
-
-function makePalm(parent){
- const group=new THREE.Group();
-
- const palm=new THREE.Mesh(
-  new THREE.SphereGeometry(.105,16,12),skinMat
- );
- palm.scale.set(.8,1.25,.55);
- group.add(palm);
-
- for(let i=0;i<4;i++){
-  const finger=new THREE.Mesh(
-   new THREE.CylinderGeometry(.018,.022,.105,8),
-   skinMat
-  );
-  finger.position.set((i-1.5)*.035,.13,0);
-  finger.rotation.z=(i-1.5)*-.08;
-  group.add(finger);
- }
-
- const thumb=new THREE.Mesh(
-  new THREE.CylinderGeometry(.019,.023,.09,8),
-  skinMat
- );
- thumb.position.set(-.095,.015,0);
- thumb.rotation.z=-.75;
- group.add(thumb);
-
- parent.add(group);
- return group;
-}
-
-function makeFoot(parent){
- const foot=new THREE.Mesh(
-  new THREE.SphereGeometry(.13,16,12),footMat
- );
- foot.scale.set(.7,.55,1.65);
- parent.add(foot);
- return foot;
-}
-
-/* ==============================
-   创建四肢
-============================== */
-function createLimbSet(type){
- const group=new THREE.Group();
- scene.add(group);
-
- const isArm=type==="arm";
- const material=isArm?armMat:legMat;
- const radius=isArm?.085:.115;
-
- const upper=makeBone(group,material,radius);
- const lower=makeBone(group,material,radius*.82);
- const end=makeBone(group,skinMat,radius*.45);
-
- const jointA=makeJoint(group,radius*.95);
- const jointB=makeJoint(group,radius*.9);
- const jointC=makeJoint(group,radius*.75);
-
- return {
-  group,upper,lower,end,
-  jointA,jointB,jointC,
-  palm:isArm?makePalm(group):null,
-  foot:isArm?null:makeFoot(group)
- };
-}
-
-const limbs={
- leftArm:createLimbSet("arm"),
- rightArm:createLimbSet("arm"),
- leftLeg:createLimbSet("leg"),
- rightLeg:createLimbSet("leg")
-};
-
-/* ==============================
-   骨骼变换
-============================== */
-const upVector=new THREE.Vector3(0,1,0);
-
-function setBone(mesh,start,end){
- const direction=new THREE.Vector3().subVectors(end,start);
- const length=direction.length();
-
- if(length<.001){
-  mesh.visible=false;
-  return;
- }
-
- mesh.visible=true;
- mesh.position.copy(start).add(end).multiplyScalar(.5);
- mesh.quaternion.setFromUnitVectors(upVector,direction.normalize());
- mesh.scale.set(1,length,1);
-}
-
-function setJoint(mesh,point){
- mesh.position.copy(point);
- mesh.visible=true;
-}
-
-function orientPalm(palm,wrist,finger){
- palm.position.copy(wrist);
- const direction=new THREE.Vector3().subVectors(finger,wrist);
- if(direction.length()>.001){
-  palm.quaternion.setFromUnitVectors(
-   upVector,direction.normalize()
-  );
- }
-}
-
-function orientFoot(foot,ankle,toe){
- foot.position.copy(ankle);
- const direction=new THREE.Vector3().subVectors(toe,ankle);
- if(direction.length()>.001){
-  foot.quaternion.setFromUnitVectors(
-   new THREE.Vector3(0,0,1),direction.normalize()
-  );
- }
-}
-
-/* ==============================
-   坐标和动作平滑
-============================== */
-function worldPoint(lm){
- return new THREE.Vector3(
-  lm.x*2.7,
-  -lm.y*2.7,
-  -lm.z*2.7
- );
-}
-
-const smoothCache={};
-
-function getSmoothPoint(name,point){
- if(!smoothCache[name]){
-  smoothCache[name]=point.clone();
- }else{
-  smoothCache[name].lerp(point,.42);
- }
- return smoothCache[name].clone();
-}
-
-function distance(a,b){
- return a.distanceTo(b);
-}
-
-function showMeasure(id,value){
- document.getElementById(id).textContent=
-  value.toFixed(2)+" m";
-}
-
-/* ==============================
-   更新四肢动作
-============================== */
-function updateArm(limb,shoulder,elbow,wrist,finger){
- setBone(limb.upper,shoulder,elbow);
- setBone(limb.lower,elbow,wrist);
- setBone(limb.end,wrist,finger);
-
- setJoint(limb.jointA,shoulder);
- setJoint(limb.jointB,elbow);
- setJoint(limb.jointC,wrist);
-
- orientPalm(limb.palm,wrist,finger);
-}
-
-function updateLeg(limb,hip,knee,ankle,toe){
- setBone(limb.upper,hip,knee);
- setBone(limb.lower,knee,ankle);
- setBone(limb.end,ankle,toe);
-
- setJoint(limb.jointA,hip);
- setJoint(limb.jointB,knee);
- setJoint(limb.jointC,ankle);
-
- orientFoot(limb.foot,ankle,toe);
-}
-
-/* ==============================
-   姿态识别结果
-============================== */
-function updateCharacterPose(world){
- if(!world||world.length<33)return;
-
- const point=(index,name)=>
-  getSmoothPoint(name,worldPoint(world[index]));
-
- const p={
-  ls:point(11,"ls"),
-  rs:point(12,"rs"),
-  le:point(13,"le"),
-  re:point(14,"re"),
-  lw:point(15,"lw"),
-  rw:point(16,"rw"),
-
-  lh:point(23,"lh"),
-  rh:point(24,"rh"),
-  lk:point(25,"lk"),
-  rk:point(26,"rk"),
-  la:point(27,"la"),
-  ra:point(28,"ra"),
-
-  lf:point(19,"lf"),
-  rf:point(20,"rf"),
-  lt:point(31,"lt"),
-  rt:point(32,"rt")
- };
-
- const leftFinger=p.lw.clone().lerp(p.lf,1.5);
- const rightFinger=p.rw.clone().lerp(p.rf,1.5);
- const leftToe=p.la.clone().lerp(p.lt,1.7);
- const rightToe=p.ra.clone().lerp(p.rt,1.7);
-
- updateArm(limbs.leftArm,p.ls,p.le,p.lw,leftFinger);
- updateArm(limbs.rightArm,p.rs,p.re,p.rw,rightFinger);
-
- updateLeg(limbs.leftLeg,p.lh,p.lk,p.la,leftToe);
- updateLeg(limbs.rightLeg,p.rh,p.rk,p.ra,rightToe);
-
- showMeasure("leftUpper",distance(p.ls,p.le));
- showMeasure("leftFore",distance(p.le,p.lw));
- showMeasure("rightUpper",distance(p.rs,p.re));
- showMeasure("rightFore",distance(p.re,p.rw));
- showMeasure("leftThigh",distance(p.lh,p.lk));
- showMeasure("leftShin",distance(p.lk,p.la));
- showMeasure("rightThigh",distance(p.rh,p.rk));
- showMeasure("rightShin",distance(p.rk,p.ra));
-
- hint.textContent="✓ 已识别人体四肢，正在实时跟随动作";
- statusEl.textContent="动作捕捉运行中";
-}
-
-/* ==============================
-   AI 模型加载
-============================== */
-async function initializePose(){
- if(poseLandmarker)return;
-
- statusEl.textContent="正在加载 AI 姿态识别模型…";
-
- const vision=await FilesetResolver.forVisionTasks(
-  "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm"
- );
-
- try{
-  poseLandmarker=await PoseLandmarker.createFromOptions(
-   vision,{
-    baseOptions:{
-     modelAssetPath:
-      "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/1/pose_landmarker_full.task",
-     delegate:"GPU"
-    },
-    runningMode:"VIDEO",
-    numPoses:1,
-    minPoseDetectionConfidence:.5,
-    minPosePresenceConfidence:.5,
-    minTrackingConfidence:.5
-   }
-  );
- }catch(error){
-  console.warn("GPU 初始化失败，尝试 CPU",error);
-  poseLandmarker=await PoseLandmarker.createFromOptions(
-   vision,{
-    baseOptions:{
-     modelAssetPath:
-      "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/1/pose_landmarker_full.task",
-     delegate:"CPU"
-    },
-    runningMode:"VIDEO",
-    numPoses:1,
-    minPoseDetectionConfidence:.5,
-    minPosePresenceConfidence:.5,
-    minTrackingConfidence:.5
-   }
-  );
- }
-}
-
-/* ==============================
-   摄像头启动
-============================== */
-async function startCamera(){
- if(running||modelLoading)return;
-
- modelLoading=true;
- errorBox.style.display="none";
-
- try{
-  if(!navigator.mediaDevices?.getUserMedia){
-   throw new Error("浏览器不支持摄像头，请使用 HTTPS 页面。");
-  }
-
-  document.getElementById("startBtn").disabled=true;
-  statusEl.textContent="正在启动摄像头…";
-
-  stream=await navigator.mediaDevices.getUserMedia({
-   audio:false,
-   video:{
-    facingMode:{ideal:cameraFacing},
-    width:{ideal:1280},
-    height:{ideal:720}
-   }
-  });
-
-  const track=stream.getVideoTracks()[0];
-  const actualFacing=track.getSettings().facingMode;
-
-  video.srcObject=stream;
-  video.classList.toggle("front-camera",cameraFacing==="user");
-  video.classList.toggle("back-camera",cameraFacing==="environment");
-
-  document.getElementById("cameraLabel").textContent=
-   actualFacing==="environment"?"后置摄像头":
-   actualFacing==="user"?"前置摄像头":
-   cameraFacing==="environment"?"后置摄像头（请求模式）":"前置摄像头（请求模式）";
-
-  await video.play();
-  await initializePose();
-
-  running=true;
-  lastVideoTime=-1;
-
-  document.getElementById("stopBtn").disabled=false;
-  statusEl.textContent="摄像头已启动";
-
-  detectLoop();
-
- }catch(error){
-  console.error(error);
-  stopTracks();
-  document.getElementById("startBtn").disabled=false;
-  statusEl.textContent="启动失败";
-
-  errorBox.style.display="block";
-  errorBox.textContent=
-   "摄像头启动失败："+error.message+
-   "。请检查摄像头权限、网络和 HTTPS 环境。";
- }finally{
-  modelLoading=false;
- }
-}
-
-/* ==============================
-   摄像头切换
-============================== */
-async function switchCamera(){
- const btn=document.getElementById("switchCameraBtn");
-
- cameraFacing=cameraFacing==="user"?"environment":"user";
-
- btn.textContent=cameraFacing==="environment"
-  ?"切换前置摄像头"
-  :"切换后置摄像头";
-
- if(running){
-  stopCamera();
-  await startCamera();
- }
-}
-
-/* ==============================
-   停止摄像头
-============================== */
-function stopTracks(){
- if(stream){
-  stream.getTracks().forEach(track=>track.stop());
-  stream=null;
- }
- video.srcObject=null;
-}
-
-function stopCamera(){
- running=false;
- cancelAnimationFrame(rafId);
- stopTracks();
-
- if(poseLandmarker){
-  poseLandmarker.close();
-  poseLandmarker=null;
- }
-
- document.getElementById("startBtn").disabled=false;
- document.getElementById("stopBtn").disabled=true;
-
- statusEl.textContent="识别已停止";
- hint.textContent="点击启动摄像头，重新开始动作捕捉";
-}
-
-/* ==============================
-   AI 识别循环
-============================== */
-function detectLoop(){
- if(!running)return;
-
- rafId=requestAnimationFrame(detectLoop);
-
- if(
-  poseLandmarker&&
-  video.readyState>=2&&
-  video.currentTime!==lastVideoTime
- ){
-  lastVideoTime=video.currentTime;
-
-  try{
-   const result=poseLandmarker.detectForVideo(
-    video,performance.now()
-   );
-
-   if(result.worldLandmarks?.length){
-    updateCharacterPose(result.worldLandmarks[0]);
-   }else{
-    statusEl.textContent="未检测到人体";
-    hint.textContent="请让身体完整进入摄像头画面";
-   }
-  }catch(error){
-   console.error("姿态识别错误",error);
-  }
- }
-}
-
-/* ==============================
-   按钮
-============================== */
-document.getElementById("startBtn")
- .addEventListener("click",startCamera);
-
-document.getElementById("switchCameraBtn")
- .addEventListener("click",switchCamera);
-
-document.getElementById("stopBtn")
- .addEventListener("click",stopCamera);
-
-document.getElementById("resetBtn")
- .addEventListener("click",()=>{
-  camera.position.set(0,.3,7.5);
-  camera.lookAt(0,0,0);
- });
-
-document.getElementById("rotateBtn")
- .addEventListener("click",event=>{
-  autoRotate=!autoRotate;
-  event.target.textContent="自动旋转："+(autoRotate?"开":"关");
- });
-
-document.getElementById("quality")
- .addEventListener("change",event=>{
-  renderer.setPixelRatio(
-   Math.min(window.devicePixelRatio*Number(event.target.value),2)
-  );
- });
-
-/* ==============================
-   渲染
-============================== */
-function animate(){
- requestAnimationFrame(animate);
-
- if(autoRotate){
-  Object.values(limbs).forEach(limb=>{
-   limb.group.rotation.y+=.0015;
-  });
- }
-
- renderer.render(scene,camera);
-}
+  PoseLandmarker,
+  FilesetResolver
+} from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14";
+
+const $ = id => document.getElementById(id);
+const video = $("video");
+const statusEl = $("status");
+const infoEl = $("info");
+
+let scene, camera, renderer, model;
+let poseLandmarker = null;
+let stream = null;
+let running = false;
+let busy = false;
+let cameraFacing = "user";
+let animationFrame = null;
+let autoRotate = false;
+let lastVideoTime = -1;
+let lastLandmarks = null;
+
+const clock = new THREE.Clock();
+const smooth = {};
+const limbs = {};
+const joints = {};
+
+initThree();
 animate();
 
-/* ==============================
-   响应式布局
-============================== */
-window.addEventListener("resize",()=>{
- const width=sceneBox.clientWidth;
- const height=sceneBox.clientHeight;
+function initThree(){
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x080d18);
 
- camera.aspect=width/height;
- camera.updateProjectionMatrix();
- renderer.setSize(width,height);
+  camera = new THREE.PerspectiveCamera(
+    42, window.innerWidth/window.innerHeight, 0.1, 100
+  );
+  camera.position.set(0,1.2,6.5);
+  camera.lookAt(0,0.4,0);
+
+  renderer = new THREE.WebGLRenderer({antialias:true,alpha:false});
+  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  renderer.setSize(window.innerWidth,window.innerHeight);
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  $("three").appendChild(renderer.domElement);
+
+  scene.add(new THREE.HemisphereLight(0xa9caff,0x172033,2));
+
+  const light = new THREE.DirectionalLight(0xffffff,2.5);
+  light.position.set(3,5,5);
+  scene.add(light);
+
+  const floor = new THREE.GridHelper(12,24,0x263b59,0x17263b);
+  floor.position.y=-1.35;
+  scene.add(floor);
+
+  model = new THREE.Group();
+  scene.add(model);
+
+  // 仅生成四肢，不生成头部、躯干和服装
+  const definitions = [
+    ["leftUpperArm",0x39b9ff],
+    ["leftForearm",0x28e0c1],
+    ["rightUpperArm",0xffa33b],
+    ["rightForearm",0xffcc55],
+    ["leftThigh",0x8e83ff],
+    ["leftShin",0x5e9cff],
+    ["rightThigh",0xff6c9d],
+    ["rightShin",0xffa0b9]
+  ];
+
+  for(const [name,color] of definitions){
+    limbs[name] = makeBone(color);
+    model.add(limbs[name].mesh);
+  }
+
+  const jointNames=[
+    "leftShoulder","leftElbow","leftWrist",
+    "rightShoulder","rightElbow","rightWrist",
+    "leftHip","leftKnee","leftAnkle",
+    "rightHip","rightKnee","rightAnkle"
+  ];
+
+  for(const name of jointNames){
+    const material=new THREE.MeshStandardMaterial({
+      color:0xeaf5ff,
+      metalness:.3,
+      roughness:.28,
+      emissive:0x153c5c
+    });
+    const mesh=new THREE.Mesh(
+      new THREE.SphereGeometry(.075,16,12),material
+    );
+    model.add(mesh);
+    joints[name]=mesh;
+  }
+
+  // 简化手掌和脚掌
+  limbs.leftHand=makeBone(0x39d9e8,.09);
+  limbs.rightHand=makeBone(0xffbd58,.09);
+  limbs.leftFoot=makeBone(0x5e9cff,.12);
+  limbs.rightFoot=makeBone(0xff7fa9,.12);
+
+  model.add(
+    limbs.leftHand.mesh,
+    limbs.rightHand.mesh,
+    limbs.leftFoot.mesh,
+    limbs.rightFoot.mesh
+  );
+
+  window.addEventListener("resize",onResize);
+}
+
+function makeBone(color,radius=.065){
+  const geometry=new THREE.CylinderGeometry(radius,radius,1,12);
+  const material=new THREE.MeshStandardMaterial({
+    color,
+    metalness:.25,
+    roughness:.35,
+    emissive:color,
+    emissiveIntensity:.08
+  });
+  const mesh=new THREE.Mesh(geometry,material);
+  return {mesh};
+}
+
+function setBone(name,a,b){
+  if(!a||!b)return;
+  const A=vector(a);
+  const B=vector(b);
+  const direction=new THREE.Vector3().subVectors(B,A);
+  const length=direction.length();
+
+  if(length<0.001)return;
+
+  const bone=limbs[name].mesh;
+  bone.position.copy(A).add(B).multiplyScalar(.5);
+  bone.scale.set(1,length,1);
+  bone.quaternion.setFromUnitVectors(
+    new THREE.Vector3(0,1,0),
+    direction.normalize()
+  );
+}
+
+function setJoint(name,p){
+  if(!p)return;
+  joints[name].position.copy(vector(p));
+}
+
+function vector(p){
+  return new THREE.Vector3(p.x,p.y,p.z);
+}
+
+function smoothPoint(name,p){
+  if(!p)return null;
+  if(!smooth[name])smooth[name]={...p};
+  const old=smooth[name];
+  const t=.38;
+  old.x+=(p.x-old.x)*t;
+  old.y+=(p.y-old.y)*t;
+  old.z+=(p.z-old.z)*t;
+  return {...old};
+}
+
+function landmarkPoint(landmarks,index){
+  const p=landmarks?.[index];
+  if(!p)return null;
+
+  // worldLandmarks 的坐标转换到 Three.js 坐标
+  return smoothPoint("p"+index,{
+    x:p.x,
+    y:-p.y,
+    z:-p.z
+  });
+}
+
+function updatePose(landmarks){
+  if(!landmarks || landmarks.length<33)return;
+
+  const p={
+    ls:landmarkPoint(landmarks,11),
+    rs:landmarkPoint(landmarks,12),
+    le:landmarkPoint(landmarks,13),
+    re:landmarkPoint(landmarks,14),
+    lw:landmarkPoint(landmarks,15),
+    rw:landmarkPoint(landmarks,16),
+    lh:landmarkPoint(landmarks,23),
+    rh:landmarkPoint(landmarks,24),
+    lk:landmarkPoint(landmarks,25),
+    rk:landmarkPoint(landmarks,26),
+    la:landmarkPoint(landmarks,27),
+    ra:landmarkPoint(landmarks,28),
+    lf:landmarkPoint(landmarks,31),
+    rf:landmarkPoint(landmarks,32)
+  };
+
+  const all=Object.values(p).filter(Boolean);
+  if(!all.length)return;
+
+  // 根据身体中心和人体尺度调整模型
+  const center=new THREE.Vector3();
+  for(const point of all)center.add(vector(point));
+  center.divideScalar(all.length);
+
+  for(const point of all){
+    point.x-=center.x;
+    point.y-=center.y;
+    point.z-=center.z;
+  }
+
+  // 放大显示，保留人体自身四肢比例
+  const scale=2.4;
+  for(const point of all){
+    point.x*=scale;
+    point.y*=scale;
+    point.z*=scale;
+  }
+
+  setBone("leftUpperArm",p.ls,p.le);
+  setBone("leftForearm",p.le,p.lw);
+  setBone("rightUpperArm",p.rs,p.re);
+  setBone("rightForearm",p.re,p.rw);
+
+  setBone("leftThigh",p.lh,p.lk);
+  setBone("leftShin",p.lk,p.la);
+  setBone("rightThigh",p.rh,p.rk);
+  setBone("rightShin",p.rk,p.ra);
+
+  // 手掌方向：用前臂方向延伸估算
+  const leftHandEnd=extend(p.lw,p.le,.28);
+  const rightHandEnd=extend(p.rw,p.re,.28);
+  setBone("leftHand",p.lw,leftHandEnd);
+  setBone("rightHand",p.rw,rightHandEnd);
+
+  // 脚掌方向：利用脚尖位置
+  setBone("leftFoot",p.la,p.lf);
+  setBone("rightFoot",p.ra,p.rf);
+
+  setJoint("leftShoulder",p.ls);
+  setJoint("leftElbow",p.le);
+  setJoint("leftWrist",p.lw);
+  setJoint("rightShoulder",p.rs);
+  setJoint("rightElbow",p.re);
+  setJoint("rightWrist",p.rw);
+  setJoint("leftHip",p.lh);
+  setJoint("leftKnee",p.lk);
+  setJoint("leftAnkle",p.la);
+  setJoint("rightHip",p.rh);
+  setJoint("rightKnee",p.rk);
+  setJoint("rightAnkle",p.ra);
+
+  infoEl.innerHTML=
+    `左臂：${distance(p.ls,p.le,p.lw)}<br>`+
+    `右臂：${distance(p.rs,p.re,p.rw)}<br>`+
+    `左腿：${distance(p.lh,p.lk,p.la)}<br>`+
+    `右腿：${distance(p.rh,p.rk,p.ra)}`;
+}
+
+function extend(end,from,length){
+  const a=vector(end);
+  const b=vector(from);
+  const d=new THREE.Vector3().subVectors(a,b).normalize();
+  return {
+    x:a.x+d.x*length,
+    y:a.y+d.y*length,
+    z:a.z+d.z*length
+  };
+}
+
+function distance(a,b,c){
+  if(!a||!b||!c)return "等待识别";
+  const d1=vector(a).distanceTo(vector(b));
+  const d2=vector(b).distanceTo(vector(c));
+  return (d1+d2).toFixed(2)+" 单位";
+}
+
+async function initializePose(){
+  if(poseLandmarker)return;
+
+  statusEl.textContent="正在加载人体识别模型…";
+
+  const vision=await FilesetResolver.forVisionTasks(
+    "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm"
+  );
+
+  poseLandmarker=await PoseLandmarker.createFromOptions(vision,{
+    baseOptions:{
+      modelAssetPath:
+      "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/1/pose_landmarker_full.task",
+      delegate:"GPU"
+    },
+    runningMode:"VIDEO",
+    numPoses:1,
+    minPoseDetectionConfidence:.5,
+    minPosePresenceConfidence:.5,
+    minTrackingConfidence:.5
+  });
+}
+
+async function startCamera(facing="user"){
+  if(busy)return;
+  busy=true;
+
+  try{
+    await stopCamera(false);
+    cameraFacing=facing;
+
+    statusEl.textContent=
+      facing==="user"?"正在启动前置摄像头…":"正在启动后置摄像头…";
+
+    await initializePose();
+
+    const newStream=await navigator.mediaDevices.getUserMedia({
+      audio:false,
+      video:{
+        facingMode:{exact:facing},
+        width:{ideal:1280},
+        height:{ideal:720}
+      }
+    });
+
+    stream=newStream;
+    video.srcObject=stream;
+    video.className=facing==="user"?"front-camera":"back-camera";
+
+    await video.play();
+
+    running=true;
+    lastVideoTime=-1;
+
+    statusEl.textContent=
+      facing==="user"?"前置摄像头已启动":"后置摄像头已启动";
+
+    $("startBtn").disabled=true;
+    $("frontBtn").disabled=false;
+    $("backBtn").disabled=false;
+
+    detectLoop();
+
+  }catch(error){
+    running=false;
+    statusEl.textContent="启动失败："+error.message;
+    console.error(error);
+    await stopCamera(false);
+  }finally{
+    busy=false;
+  }
+}
+
+function detectLoop(){
+  if(!running)return;
+
+  if(video.readyState>=2 && video.currentTime!==lastVideoTime){
+    lastVideoTime=video.currentTime;
+
+    try{
+      const result=poseLandmarker.detectForVideo(video,performance.now());
+
+      if(result.worldLandmarks && result.worldLandmarks.length){
+        lastLandmarks=result.worldLandmarks[0];
+        updatePose(lastLandmarks);
+        statusEl.textContent="正在实时捕捉人体动作";
+      }else{
+        statusEl.textContent="未检测到人体，请站在摄像头前";
+      }
+    }catch(error){
+      console.error("识别错误：",error);
+    }
+  }
+
+  animationFrame=requestAnimationFrame(detectLoop);
+}
+
+async function stopCamera(closeModel=true){
+  running=false;
+
+  if(animationFrame!==null){
+    cancelAnimationFrame(animationFrame);
+    animationFrame=null;
+  }
+
+  if(stream){
+    stream.getTracks().forEach(track=>track.stop());
+    stream=null;
+  }
+
+  video.srcObject=null;
+  $("startBtn").disabled=false;
+
+  if(closeModel && poseLandmarker){
+    poseLandmarker.close();
+    poseLandmarker=null;
+  }
+
+  if(closeModel){
+    statusEl.textContent="摄像头已停止";
+  }
+}
+
+function resetView(){
+  camera.position.set(0,1.2,6.5);
+  camera.lookAt(0,0.4,0);
+  model.rotation.set(0,0,0);
+  model.position.set(0,0,0);
+}
+
+function onResize(){
+  camera.aspect=window.innerWidth/window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth,window.innerHeight);
+}
+
+function animate(){
+  requestAnimationFrame(animate);
+  const delta=clock.getDelta();
+
+  if(autoRotate && !running){
+    model.rotation.y+=delta*.5;
+  }
+
+  renderer.render(scene,camera);
+}
+
+// 按钮事件
+$("startBtn").addEventListener("click",()=>{
+  startCamera(cameraFacing);
+});
+
+$("frontBtn").addEventListener("click",()=>{
+  startCamera("user");
+});
+
+$("backBtn").addEventListener("click",()=>{
+  startCamera("environment");
+});
+
+$("stopBtn").addEventListener("click",()=>{
+  stopCamera();
+});
+
+$("resetBtn").addEventListener("click",resetView);
+
+$("rotateBtn").addEventListener("click",()=>{
+  autoRotate=!autoRotate;
+  $("rotateBtn").textContent=
+    "自动旋转："+(autoRotate?"开":"关");
 });
 
 window.addEventListener("beforeunload",()=>{
- running=false;
- cancelAnimationFrame(rafId);
- stopTracks();
- if(poseLandmarker)poseLandmarker.close();
+  if(stream)stream.getTracks().forEach(track=>track.stop());
 });
 </script>
 </body>
