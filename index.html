@@ -4,223 +4,695 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Three.js 3D人物展示</title>
-
+<title>内置3D武侠人物动作捕捉</title>
 <style>
 *{box-sizing:border-box}
-html,body{
-  margin:0;width:100%;height:100%;overflow:hidden;
-  background:#10131c;color:white;font-family:Arial,sans-serif
+body{margin:0;background:#080d17;color:#fff;font-family:Arial,sans-serif;overflow:hidden}
+#app{height:100dvh;width:100%;position:relative}
+#scene{position:absolute;inset:0}
+#top{
+ position:absolute;top:12px;left:12px;right:12px;
+ z-index:5;display:flex;justify-content:space-between;
+ align-items:center;pointer-events:none
 }
-#view{position:absolute;inset:0}
-#status{
-  position:absolute;z-index:5;top:15px;left:15px;
-  padding:12px 16px;background:#202a3c;
-  border:1px solid #40506a;border-radius:12px;
-  font-size:13px;max-width:90vw
+.panel{
+ background:#111c2cdd;border:1px solid #34445b;
+ border-radius:12px;padding:10px 13px;
+ backdrop-filter:blur(12px)
 }
-#tools{
-  position:absolute;z-index:5;bottom:20px;left:50%;
-  transform:translateX(-50%);display:flex;gap:10px;
-  width:max-content;max-width:95vw
+#status{font-size:12px;color:#9bc8ff}
+#title{font-size:15px;font-weight:bold}
+#cameraBox{
+ position:absolute;right:12px;bottom:82px;
+ width:min(32vw,180px);aspect-ratio:4/3;
+ border:1px solid #627a9c;border-radius:12px;
+ overflow:hidden;background:#111c2c;z-index:4
+}
+#video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
+#skeleton{
+ position:absolute;inset:0;width:100%;height:100%;
+ transform:scaleX(-1);pointer-events:none
+}
+#controls{
+ position:absolute;bottom:12px;left:12px;right:12px;
+ display:flex;gap:8px;justify-content:center;z-index:6
 }
 button{
-  border:0;border-radius:10px;padding:12px 18px;
-  background:#2878e8;color:white;font-size:14px
+ border:1px solid #405675;border-radius:10px;
+ background:#17263b;color:white;padding:12px 15px;
+ font-size:13px
 }
-#file{
-  position:absolute;bottom:75px;left:15px;
-  color:#aebbd0;font-size:12px
+button.primary{background:#176bd3;border-color:#388fff}
+#hint{
+ position:absolute;left:12px;bottom:78px;
+ z-index:3;font-size:11px;color:#9aabc1;
+ max-width:50%
+}
+#stats{font-size:11px;line-height:1.8;color:#a9bfdc}
+@media(max-width:600px){
+ #cameraBox{width:120px;bottom:78px}
+ #hint{max-width:48%;font-size:10px}
+ button{padding:11px 10px;font-size:12px}
 }
 </style>
 </head>
-
 <body>
-<div id="view"></div>
-<div id="status">正在启动 Three.js……</div>
-<div id="file">模型：Sci-Fi Swordsman.ply</div>
-<div id="tools">
-  <button id="reset">重置视角</button>
-  <button id="reload">重新加载</button>
+<div id="app">
+ <div id="scene"></div>
+
+ <div id="top">
+  <div class="panel">
+   <div id="title">⚔️ 武侠人物动作捕捉</div>
+   <div id="status">正在初始化 3D 场景</div>
+  </div>
+  <div class="panel" id="stats">
+   人物：内置生成<br>
+   引擎：Three.js
+  </div>
+ </div>
+
+ <div id="hint">点击启动摄像头，让人物跟随你的身体动作。</div>
+
+ <div id="cameraBox">
+  <video id="video" autoplay playsinline muted></video>
+  <canvas id="skeleton"></canvas>
+ </div>
+
+ <div id="controls">
+  <button class="primary" id="start">启动摄像头</button>
+  <button id="stop">停止</button>
+  <button id="reset">重置人物</button>
+ </div>
 </div>
 
-<script type="importmap">
-{
-  "imports":{
-    "three":"https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.webgpu.js",
-    "three/webgpu":"https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.webgpu.js",
-    "three/tsl":"https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.tsl.js",
-    "three/addons/":"https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/"
-  }
-}
-</script>
-
 <script type="module">
-import * as THREE from 'three';
-import {GaussianSplatPLYLoader}
-  from 'three/addons/loaders/GaussianSplatPLYLoader.js';
-import {GaussianSplat}
-  from 'three/addons/objects/GaussianSplat.js';
+import * as THREE from
+'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
 
-const container=document.getElementById('view');
-const status=document.getElementById('status');
+import {PoseLandmarker,FilesetResolver}
+from 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14';
 
-let renderer,scene,camera,character;
+const $=id=>document.getElementById(id);
+const sceneBox=$('scene');
+const video=$('video');
+const canvas=$('skeleton');
+const ctx=canvas.getContext('2d');
+const status=$('status');
 
-const setStatus=(msg)=>status.textContent=msg;
+let scene,camera,renderer,character;
+let poseLandmarker=null,stream=null;
+let running=false,lastVideoTime=-1;
+let animationFrame=0;
+const clock=new THREE.Clock();
 
-async function init(){
-
-  try{
-    setStatus('正在初始化 GPU 渲染器……');
-
-    scene=new THREE.Scene();
-    scene.background=new THREE.Color(0x10131c);
-
-    camera=new THREE.PerspectiveCamera(
-      45,window.innerWidth/window.innerHeight,0.01,100
-    );
-
-    camera.position.set(0,1.1,4);
-    camera.lookAt(0,1,0);
-
-    renderer=new THREE.WebGPURenderer({
-      antialias:true,
-      alpha:false,
-      forceWebGL:true
-    });
-
-    renderer.setPixelRatio(
-      Math.min(window.devicePixelRatio,2)
-    );
-
-    renderer.setSize(
-      window.innerWidth,window.innerHeight
-    );
-
-    container.appendChild(renderer.domElement);
-
-    await renderer.init();
-
-    setStatus('GPU 已启动，正在读取 PLY……');
-
-    await loadModel();
-
-    renderer.setAnimationLoop(()=>{
-      renderer.render(scene,camera);
-    });
-
-  }catch(error){
-    console.error(error);
-    setStatus('启动失败：'+error.message);
-  }
-}
-
-async function loadModel(){
-
-  try{
-    if(character){
-      scene.remove(character);
-      character.geometry?.dispose?.();
-      character.material?.dispose?.();
-      character=null;
-    }
-
-    setStatus('正在读取人物 PLY 数据……');
-
-    const loader=new GaussianSplatPLYLoader();
-
-    const geometry=await loader.loadAsync(
-      './Sci-Fi%20Swordsman.ply'
-    );
-
-    console.log('PLY geometry:',geometry);
-    console.log('Attributes:',geometry.attributes);
-
-    character=new GaussianSplat(geometry,{
-      autoSort:true
-    });
-
-    character.position.set(
-      -0.06267,-0.01593,-0.02657
-    );
-
-    character.scale.setScalar(1);
-
-    scene.add(character);
-
-    character.computeBoundingBox();
-    character.computeBoundingSphere();
-
-    camera.position.set(0,1.05,4);
-    camera.lookAt(0,1,0);
-
-    setStatus(
-      '人物加载成功！可以拖动屏幕旋转观察。'
-    );
-
-  }catch(error){
-    console.error('PLY加载失败:',error);
-    setStatus('人物加载失败：'+error.message);
-  }
-}
-
-document.getElementById('reload').onclick=loadModel;
-
-document.getElementById('reset').onclick=()=>{
-  camera.position.set(0,1.05,4);
-  camera.lookAt(0,1,0);
+const mat=(color,metalness=0,roughness=.7)=>{
+ return new THREE.MeshStandardMaterial({
+  color,metalness,roughness
+ });
 };
 
-window.addEventListener('resize',()=>{
-  if(!camera||!renderer)return;
+const materials={
+ skin:mat(0xe6b995),
+ dark:mat(0x101a2b),
+ cloth:mat(0x172e4b),
+ blue:mat(0x244d76),
+ gold:mat(0xc69b4b,.7,.3),
+ silver:mat(0x9eb4c8,.7,.3),
+ hair:mat(0x101018),
+ leather:mat(0x38291e),
+ black:mat(0x080d15)
+};
 
-  camera.aspect=window.innerWidth/window.innerHeight;
-  camera.updateProjectionMatrix();
+function initScene(){
+ scene=new THREE.Scene();
+ scene.background=new THREE.Color(0x080e19);
+ scene.fog=new THREE.Fog(0x080e19,9,22);
 
-  renderer.setSize(
-    window.innerWidth,window.innerHeight
-  );
-});
+ camera=new THREE.PerspectiveCamera(
+  38,innerWidth/innerHeight,.1,100
+ );
+ camera.position.set(0,2.6,8);
+ camera.lookAt(0,1.35,0);
 
-let dragging=false,lastX=0,lastY=0;
-let angle=0,elevation=0.1;
+ renderer=new THREE.WebGLRenderer({
+  antialias:true,alpha:false
+ });
+ renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+ renderer.setSize(innerWidth,innerHeight);
+ renderer.shadowMap.enabled=true;
+ renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+ renderer.outputColorSpace=THREE.SRGBColorSpace;
+ renderer.toneMapping=THREE.ACESFilmicToneMapping;
+ renderer.toneMappingExposure=1.25;
+ sceneBox.appendChild(renderer.domElement);
 
-rendererControl();
+ scene.add(new THREE.HemisphereLight(0xbcdcff,0x1b1825,2));
 
-function rendererControl(){
-  container.addEventListener('pointerdown',e=>{
-    dragging=true;
-    lastX=e.clientX;
-    lastY=e.clientY;
-  });
+ const key=new THREE.DirectionalLight(0xffe3be,3);
+ key.position.set(4,7,5);
+ key.castShadow=true;
+ scene.add(key);
 
-  window.addEventListener('pointerup',()=>{
-    dragging=false;
-  });
+ const rim=new THREE.DirectionalLight(0x4d91ff,2.5);
+ rim.position.set(-4,4,-4);
+ scene.add(rim);
 
-  window.addEventListener('pointermove',e=>{
-    if(!dragging||!camera)return;
+ const floor=new THREE.Mesh(
+  new THREE.CircleGeometry(5,64),
+  mat(0x172337,.2,.8)
+ );
+ floor.rotation.x=-Math.PI/2;
+ floor.position.y=-.04;
+ floor.receiveShadow=true;
+ scene.add(floor);
 
-    angle-=(e.clientX-lastX)*0.006;
-    elevation+=(e.clientY-lastY)*0.004;
-    elevation=Math.max(-1,Math.min(1,elevation));
+ const grid=new THREE.GridHelper(12,24,0x35506d,0x1b2b40);
+ grid.position.y=-.025;
+ scene.add(grid);
 
-    lastX=e.clientX;
-    lastY=e.clientY;
+ const ring=new THREE.Mesh(
+  new THREE.TorusGeometry(1.1,.012,8,80),
+  mat(0x478bd1,.6,.4)
+ );
+ ring.rotation.x=Math.PI/2;
+ ring.position.y=.01;
+ scene.add(ring);
 
-    const radius=4;
-    camera.position.set(
-      Math.sin(angle)*radius,
-      1.05+elevation,
-      Math.cos(angle)*radius
-    );
-
-    camera.lookAt(0,1,0);
-  });
+ character=createCharacter();
+ scene.add(character);
 }
 
-init();
+function sphere(parent,name,radius,material,pos){
+ const mesh=new THREE.Mesh(
+  new THREE.SphereGeometry(radius,20,16),material
+ );
+ mesh.name=name;
+ mesh.position.set(...pos);
+ mesh.castShadow=true;
+ mesh.receiveShadow=true;
+ parent.add(mesh);
+ return mesh;
+}
+
+function box(parent,name,size,material,pos){
+ const mesh=new THREE.Mesh(
+  new THREE.BoxGeometry(...size),material
+ );
+ mesh.name=name;
+ mesh.position.set(...pos);
+ mesh.castShadow=true;
+ mesh.receiveShadow=true;
+ parent.add(mesh);
+ return mesh;
+}
+
+function cylinder(parent,name,r1,r2,height,material,pos){
+ const mesh=new THREE.Mesh(
+  new THREE.CylinderGeometry(r1,r2,height,16),
+  material
+ );
+ mesh.name=name;
+ mesh.position.set(...pos);
+ mesh.castShadow=true;
+ parent.add(mesh);
+ return mesh;
+}
+
+function segment(parent,name,radius,material){
+ const mesh=new THREE.Mesh(
+  new THREE.CylinderGeometry(radius*.78,radius,1,12),
+  material
+ );
+ mesh.name=name;
+ mesh.castShadow=true;
+ parent.add(mesh);
+ return mesh;
+}
+
+function between(mesh,a,b){
+ const start=new THREE.Vector3(...a);
+ const end=new THREE.Vector3(...b);
+ const diff=end.clone().sub(start);
+ mesh.position.copy(start).add(end).multiplyScalar(.5);
+ mesh.scale.set(1,diff.length(),1);
+ mesh.quaternion.setFromUnitVectors(
+  new THREE.Vector3(0,1,0),diff.normalize()
+ );
+}
+
+function createCharacter(){
+ const root=new THREE.Group();
+ root.name='WuxiaCharacter';
+
+ // 身体根节点
+ const body=new THREE.Group();
+ body.name='body';
+ root.add(body);
+
+ // 腰部和躯干
+ sphere(body,'waist',.24,materials.leather,[0,1.03,0]);
+ const torso=new THREE.Mesh(
+  new THREE.CylinderGeometry(.29,.24,.68,20),
+  materials.cloth
+ );
+ torso.position.y=1.49;
+ torso.scale.set(1.15,1,0.72);
+ torso.castShadow=true;
+ body.add(torso);
+
+ // 胸甲
+ const chest=box(body,'chestArmor',[.52,.27,.12],materials.blue,[0,1.62,.02]);
+ chest.rotation.z=0;
+
+ // 衣领
+ const collar=cylinder(body,'collar',.13,.19,.13,materials.gold,[0,1.84,0]);
+ collar.rotation.x=Math.PI/2;
+
+ // 腰带
+ const belt=box(body,'belt',[.52,.09,.3],materials.gold,[0,1.17,0]);
+ belt.rotation.z=0;
+
+ // 长袍下摆
+ const skirt=new THREE.Mesh(
+  new THREE.CylinderGeometry(.47,.62,.65,24,1,true),
+  materials.dark
+ );
+ skirt.position.y=.78;
+ skirt.castShadow=true;
+ body.add(skirt);
+
+ // 衣袍装饰线
+ for(let side of [-1,1]){
+  const line=box(body,'robeTrim',[.025,.62,.015],materials.gold,[side*.34,.79,.04]);
+  line.rotation.z=side*.12;
+ }
+
+ // 头颈
+ cylinder(body,'neck',.095,.11,.22,materials.skin,[0,1.91,0]);
+
+ const head=new THREE.Group();
+ head.name='head';
+ head.position.set(0,2.17,0);
+ body.add(head);
+
+ sphere(head,'face',.205,materials.skin,[0,0,0]);
+ sphere(head,'hairCap',.218,materials.hair,[0,.12,-.025]);
+
+ // 头发后束
+ const pony=cylinder(head,'ponytail',.075,.035,.65,materials.hair,[0,-.22,-.2]);
+ pony.rotation.x=-.25;
+
+ // 发髻
+ sphere(head,'hairBun',.12,materials.hair,[0,.28,-.03]);
+
+ // 眉眼
+ for(const side of [-1,1]){
+  sphere(head,'eye',.025,materials.black,[side*.075,.015,.185]);
+  box(head,'eyebrow',[.07,.018,.025],materials.hair,[side*.075,.065,.18]);
+ }
+
+ // 肩甲
+ const shoulderGroups={};
+ for(const side of [-1,1]){
+  const shoulder=new THREE.Group();
+  shoulder.position.set(side*.34,1.72,0);
+  body.add(shoulder);
+  shoulderGroups[side]=shoulder;
+
+  sphere(shoulder,'shoulderArmor',.17,materials.blue,[0,0,0]);
+  sphere(shoulder,'shoulderGold',.13,materials.gold,[0,.025,.07]);
+ }
+
+ // 手臂关节层级
+ const arms={};
+ for(const side of [-1,1]){
+  const arm=new THREE.Group();
+  arm.name=side===1?'rightArm':'leftArm';
+  arm.position.set(side*.34,1.68,0);
+  body.add(arm);
+
+  const upper=segment(arm,'upperArm',.105,materials.cloth);
+  const elbow=sphere(arm,'elbow',.09,materials.skin,[0,-.38,0]);
+  const fore=segment(arm,'forearm',.085,materials.blue);
+  const wrist=sphere(arm,'wrist',.07,materials.skin,[0,-.78,0]);
+  const hand=sphere(arm,'hand',.095,materials.skin,[0,-.91,.02]);
+
+  const bracer=box(arm,'bracer',[.16,.25,.13],materials.silver,[0,-.64,.01]);
+
+  arms[side]={upper,elbow,fore,wrist,hand,bracer};
+ }
+
+ // 腿部
+ const legs={};
+ for(const side of [-1,1]){
+  const leg=new THREE.Group();
+  leg.position.set(side*.16,.98,0);
+  body.add(leg);
+
+  const thigh=segment(leg,'thigh',.14,materials.dark);
+  const knee=sphere(leg,'knee',.11,materials.blue,[0,-.46,0]);
+  const shin=segment(leg,'shin',.105,materials.cloth);
+  const ankle=sphere(leg,'ankle',.075,materials.skin,[0,-.91,0]);
+  const boot=box(leg,'boot',[.2,.17,.36],materials.leather,[0,-1.04,.08]);
+  const bootTop=box(leg,'bootTop',[.19,.18,.18],materials.gold,[0,-.92,0]);
+
+  legs[side]={thigh,knee,shin,ankle,boot,bootTop};
+ }
+
+ // 披风
+ const cape=new THREE.Mesh(
+  new THREE.PlaneGeometry(.9,1.2,8,8),
+  new THREE.MeshStandardMaterial({
+   color:0x101e35,side:THREE.DoubleSide,
+   roughness:.9
+  })
+ );
+ cape.position.set(0,1.28,-.3);
+ cape.rotation.x=-.12;
+ body.add(cape);
+
+ // 背后剑鞘
+ const sheath=box(body,'swordSheath',[.12,1.05,.13],materials.leather,[.28,1.3,-.25]);
+ sheath.rotation.z=-.28;
+
+ // 剑柄与剑身
+ const sword=new THREE.Group();
+ sword.name='sword';
+ body.add(sword);
+ cylinder(sword,'handle',.035,.035,.42,materials.leather,[.62,1.65,.03]);
+ const guard=box(sword,'guard',[.3,.055,.09],materials.gold,[.62,1.43,.03]);
+ const blade=new THREE.Mesh(
+  new THREE.BoxGeometry(.07,1.2,.025),
+  new THREE.MeshStandardMaterial({
+   color:0xd8e7f5,metalness:.9,roughness:.18
+  })
+ );
+ blade.position.set(.62,.82,.03);
+ sword.add(blade);
+
+ root.userData={
+  body,head,arms,legs,shoulders:shoulderGroups,
+  cape,sword,torso
+ };
+
+ return root;
+}
+
+// 将线段更新到两个三维点之间
+function updateBone(mesh,a,b){
+ between(mesh,a,b);
+}
+
+// 姿态数据映射到人物
+function applyPose(lm){
+ if(!character||!lm||lm.length<33)return;
+
+ const u=character.userData;
+ const body=u.body;
+
+ const p=i=>[
+  (0.5-lm[i].x)*2.6,
+  (0.5-lm[i].y)*2.9+1.1,
+  0
+ ];
+
+ // 姿态点索引
+ const ids={
+  ls:11,rs:12,
+  le:13,re:14,
+  lw:15,rw:16,
+  lh:23,rh:24,
+  lk:25,rk:26,
+  la:27,ra:28
+ };
+
+ const ls=p(ids.ls),rs=p(ids.rs);
+ const le=p(ids.le),re=p(ids.re);
+ const lw=p(ids.lw),rw=p(ids.rw);
+ const lh=p(ids.lh),rh=p(ids.rh);
+ const lk=p(ids.lk),rk=p(ids.rk);
+ const la=p(ids.la),ra=p(ids.ra);
+
+ // 以肩膀与髋部中点作为身体中心
+ const shoulderCenter=[
+  (ls[0]+rs[0])/2,(ls[1]+rs[1])/2,0
+ ];
+ const hipCenter=[
+  (lh[0]+rh[0])/2,(lh[1]+rh[1])/2,0
+ ];
+
+ // 身体整体倾斜
+ const dx=rs[0]-ls[0];
+ const dy=rs[1]-ls[1];
+ const angle=Math.atan2(dy,dx);
+ body.rotation.z=THREE.MathUtils.lerp(
+  body.rotation.z,-angle*.8,.28
+ );
+
+ // 身体高度及左右位置
+ body.position.x=THREE.MathUtils.lerp(
+  body.position.x,-hipCenter[0]*.45,.16
+ );
+
+ // 根据肩髋高度估计躯干姿态
+ const shoulderY=shoulderCenter[1];
+ const hipY=hipCenter[1];
+ body.scale.y=THREE.MathUtils.lerp(
+  body.scale.y,
+  THREE.MathUtils.clamp((shoulderY-hipY)/1.2,.72,1.25),
+  .18
+ );
+
+ // 人物手臂映射到相对身体坐标
+ function localPoint(world){
+  return [
+   world[0]-hipCenter[0],
+   world[1]-hipCenter[1]+.98,
+   world[2]
+  ];
+ }
+
+ function moveArm(side,shoulder,elbow,wrist){
+  const arm=u.arms[side];
+  const s=localPoint(shoulder);
+  const e=localPoint(elbow);
+  const w=localPoint(wrist);
+
+  updateBone(arm.upper,s,e);
+  arm.elbow.position.set(...e);
+  updateBone(arm.fore,e,w);
+  arm.wrist.position.set(...w);
+
+  arm.hand.position.set(
+   w[0],w[1]-.1,w[2]
+  );
+
+  arm.bracer.position.set(
+   (e[0]+w[0])/2,
+   (e[1]+w[1])/2,
+   .025
+  );
+ }
+
+ moveArm(-1,ls,le,lw);
+ moveArm(1,rs,re,rw);
+
+ function moveLeg(side,hip,knee,ankle){
+  const leg=u.legs[side];
+  const h=localPoint(hip);
+  const k=localPoint(knee);
+  const a=localPoint(ankle);
+
+  updateBone(leg.thigh,h,k);
+  leg.knee.position.set(...k);
+  updateBone(leg.shin,k,a);
+  leg.ankle.position.set(...a);
+  leg.boot.position.set(a[0],a[1]-.1,.08);
+  leg.bootTop.position.set(a[0],a[1]+.015,0);
+ }
+
+ moveLeg(-1,lh,lk,la);
+ moveLeg(1,rh,rk,ra);
+
+ // 头部根据肩部中心变化轻微跟随
+ u.head.position.x=THREE.MathUtils.lerp(
+  u.head.position.x,
+  (shoulderCenter[0]-hipCenter[0])*.2,.15
+ );
+
+ // 识别左右手是否举起，调整剑的展示姿态
+ const rightRaised=rw[1]>rs[1];
+ u.sword.rotation.z=THREE.MathUtils.lerp(
+  u.sword.rotation.z,rightRaised?-.65:0,.12
+ );
+}
+
+// 绘制摄像头姿态骨架
+const connections=[
+ [11,12],[11,13],[13,15],[12,14],[14,16],
+ [11,23],[12,24],[23,24],
+ [23,25],[25,27],[24,26],[26,28],
+ [15,17],[15,19],[16,18],[16,20]
+];
+
+function drawPose(lm){
+ const w=canvas.width=canvas.clientWidth*devicePixelRatio;
+ const h=canvas.height=canvas.clientHeight*devicePixelRatio;
+ ctx.clearRect(0,0,w,h);
+ if(!lm)return;
+
+ ctx.lineWidth=2*devicePixelRatio;
+ ctx.strokeStyle='#55d9ff';
+
+ for(const [a,b] of connections){
+  ctx.beginPath();
+  ctx.moveTo(lm[a].x*w,lm[a].y*h);
+  ctx.lineTo(lm[b].x*w,lm[b].y*h);
+  ctx.stroke();
+ }
+
+ ctx.fillStyle='#ffffff';
+ for(const i of [11,12,13,14,15,16,23,24,25,26,27,28]){
+  ctx.beginPath();
+  ctx.arc(lm[i].x*w,lm[i].y*h,3*devicePixelRatio,0,Math.PI*2);
+  ctx.fill();
+ }
+}
+
+async function setupPose(){
+ status.textContent='正在加载姿态识别模型……';
+
+ const vision=await FilesetResolver.forVisionTasks(
+  'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm'
+ );
+
+ poseLandmarker=await PoseLandmarker.createFromOptions(
+  vision,{
+   baseOptions:{
+    modelAssetPath:
+    'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task',
+    delegate:'GPU'
+   },
+   runningMode:'VIDEO',
+   numPoses:1
+  }
+ );
+}
+
+async function startCamera(){
+ try{
+  if(running)return;
+
+  status.textContent='正在请求摄像头权限……';
+
+  if(!navigator.mediaDevices?.getUserMedia){
+   throw new Error('当前环境不支持摄像头，请使用 HTTPS 或 localhost');
+  }
+
+  stream=await navigator.mediaDevices.getUserMedia({
+   video:{
+    facingMode:'user',
+    width:{ideal:640},
+    height:{ideal:480}
+   },
+   audio:false
+  });
+
+  video.srcObject=stream;
+  await video.play();
+
+  if(!poseLandmarker)await setupPose();
+
+  running=true;
+  lastVideoTime=-1;
+  status.textContent='摄像头已启动，正在捕捉动作';
+  detectLoop();
+
+ }catch(e){
+  console.error(e);
+  status.textContent='启动失败：'+e.message;
+ }
+}
+
+function detectLoop(){
+ if(!running)return;
+
+ if(video.readyState>=2&&video.currentTime!==lastVideoTime){
+  lastVideoTime=video.currentTime;
+
+  try{
+   const result=poseLandmarker.detectForVideo(
+    video,performance.now()
+   );
+
+   if(result.landmarks?.length){
+    const lm=result.landmarks[0];
+    applyPose(lm);
+    drawPose(lm);
+   }else{
+    drawPose(null);
+   }
+  }catch(e){
+   console.error(e);
+  }
+ }
+
+ animationFrame=requestAnimationFrame(detectLoop);
+}
+
+function stopCamera(){
+ running=false;
+ cancelAnimationFrame(animationFrame);
+
+ if(stream){
+  stream.getTracks().forEach(t=>t.stop());
+  stream=null;
+ }
+
+ video.srcObject=null;
+ ctx.clearRect(0,0,canvas.width,canvas.height);
+ status.textContent='摄像头已停止';
+}
+
+function resetCharacter(){
+ if(!character)return;
+ character.position.set(0,0,0);
+ character.rotation.set(0,0,0);
+ character.scale.set(1,1,1);
+ const u=character.userData;
+ u.body.position.set(0,0,0);
+ u.body.rotation.set(0,0,0);
+ u.body.scale.set(1,1,1);
+ u.sword.rotation.set(0,0,0);
+}
+
+$('start').addEventListener('click',startCamera);
+$('stop').addEventListener('click',stopCamera);
+$('reset').addEventListener('click',resetCharacter);
+
+function animate(){
+ requestAnimationFrame(animate);
+ const t=clock.getElapsedTime();
+
+ if(character&&!running){
+  character.userData.cape.rotation.x=
+   -.12+Math.sin(t*1.5)*.035;
+  character.userData.head.rotation.y=
+   Math.sin(t*.5)*.035;
+ }
+
+ renderer.render(scene,camera);
+}
+
+window.addEventListener('resize',()=>{
+ if(!camera||!renderer)return;
+ camera.aspect=innerWidth/innerHeight;
+ camera.updateProjectionMatrix();
+ renderer.setSize(innerWidth,innerHeight);
+});
+
+initScene();
+animate();
 </script>
 </body>
 </html>
