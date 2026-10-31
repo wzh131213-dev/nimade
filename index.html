@@ -23,7 +23,8 @@ header{height:48px;display:flex;align-items:center;justify-content:space-between
 .cameraPanel{display:flex;flex-direction:column;min-width:0}
 .panelTitle{padding:10px 13px;font-size:13px;border-bottom:1px solid #2a3142;display:flex;justify-content:space-between;align-items:center}
 .stage{position:relative;flex:1;min-height:0;background:#05060a;overflow:hidden}
-video,#canvas{position:absolute;width:100%;height:100%;inset:0;object-fit:cover;transform:scaleX(-1)}
+video,#canvas{position:absolute;width:100%;height:100%;inset:0;object-fit:cover}
+video{transform:scaleX(-1)}
 #canvas{pointer-events:none}
 .empty{position:absolute;inset:0;display:grid;place-items:center;text-align:center;color:#8a93a8;padding:20px;line-height:2}
 .empty strong{display:block;color:white;font-size:18px}
@@ -115,9 +116,8 @@ body.fullscreen .stage{min-height:0}
   </div>
   <div class="tools">
    <button class="primary" id="cameraBtn">启动摄像头</button>
-   <button id="recordBtn">开始绘画</button>
-   <button class="pink" id="playBtn">▶ 播放</button>
-   <button id="stopBtn">停止</button>
+   <button class="pink" id="startBtn" disabled>▶ 开始</button>
+   <button id="playBtn">▶ 回放</button>
    <button id="clearBtn">清空</button>
    <button id="fullscreenBtn">⛶ 全屏</button>
    <select id="scale">
@@ -139,7 +139,7 @@ body.fullscreen .stage{min-height:0}
     <button id="drawMode">绘画后播放</button>
    </div>
    <div class="description" id="modeText">
-    多根手指同时移动，即可同时演奏不同音符。
+    先启动摄像头，再点击「开始」，伸出手指即可演奏。
    </div>
    <div class="progress"><div id="progress"></div></div>
   </div>
@@ -194,7 +194,7 @@ const tips=[4,8,12,16,20];
 const pips=[3,6,10,14,18];
 
 let handsModel=null,stream=null,running=false;
-let mode='live',recording=false;
+let mode='live',active=false;  // active = 点击「开始」后才真正追踪
 let points=[],notes=[],audio=null;
 let lastTriggers={};
 let playbackTimer=null,playbackStart=0;
@@ -457,7 +457,7 @@ function onResults(result){
     const label=result.multiHandedness?.[hand]?.label||'Right';
     for(let f=0;f<5;f++){
       if(fingerExtended(lm,f,label)){
-        if(mode==='live'||recording){
+        if(active){  // 必须点击「开始」后才追踪
           if(!recordStart)recordStart=now;
           const tip=lm[tips[f]];
           const x=(1-tip.x)*stage.clientWidth;
@@ -468,8 +468,9 @@ function onResults(result){
     }
   });
 
-  $('duration').textContent=
-  ((now-recordStart)/1000).toFixed(1)+'s';
+  if(active && recordStart){
+    $('duration').textContent=((now-recordStart)/1000).toFixed(1)+'s';
+  }
 
   draw();
 }
@@ -510,8 +511,10 @@ async function startCamera(){
 
     running=true;
     stage.classList.add('started');
-    $('status').textContent='● 摄像头运行中';
+    $('status').textContent='● 摄像头已就绪，请点击「开始」';
     $('cameraBtn').textContent='关闭摄像头';
+    $('startBtn').disabled=false;
+    $('startBtn').textContent='▶ 开始';
 
     async function loop(){
       if(!running)return;
@@ -532,6 +535,7 @@ async function startCamera(){
 
 function stopCamera(){
   running=false;
+  active=false;
   if(stream)stream.getTracks().forEach(t=>t.stop());
   stream=null;
   video.srcObject=null;
@@ -539,11 +543,37 @@ function stopCamera(){
   stage.classList.remove('started');
   $('cameraBtn').textContent='启动摄像头';
   $('status').textContent='● 摄像头已关闭';
+  $('startBtn').disabled=true;
+  $('startBtn').textContent='▶ 开始';
+  $('startBtn').classList.add('pink');
+  $('startBtn').classList.remove('primary');
 }
 
 $('cameraBtn').onclick=()=>{
   if(running)stopCamera();
   else startCamera();
+};
+
+// 点击「开始 / 停止」才真正开始追踪演奏
+$('startBtn').onclick=()=>{
+  if(!running){
+    alert('请先启动摄像头');
+    return;
+  }
+  active=!active;
+  if(active){
+    recordStart=performance.now();
+    $('startBtn').textContent='■ 停止';
+    $('startBtn').classList.remove('pink');
+    $('startBtn').classList.add('primary');
+    $('status').textContent='● 演奏中…';
+    getAudio();
+  }else{
+    $('startBtn').textContent='▶ 开始';
+    $('startBtn').classList.add('pink');
+    $('startBtn').classList.remove('primary');
+    $('status').textContent='● 已暂停，点击「开始」继续';
+  }
 };
 
 function setMode(m){
@@ -552,24 +582,12 @@ function setMode(m){
   $('drawMode').classList.toggle('active',m==='record');
 
   $('modeText').textContent=m==='live'?
-  '双手十根手指移动时立即发声。':
-  '点击开始绘画，使用多根手指记录旋律，再点击播放。';
-
-  $('recordBtn').style.display=m==='live'?'none':'block';
+  '点击「开始」后，手指移动立即发声。':
+  '点击「开始」记录轨迹，结束后点「回放」聆听。';
 }
 
 $('liveMode').onclick=()=>setMode('live');
 $('drawMode').onclick=()=>setMode('record');
-
-$('recordBtn').onclick=()=>{
-  recording=!recording;
-  if(recording){
-    if(!recordStart)recordStart=performance.now();
-    $('recordBtn').textContent='结束绘画';
-  }else{
-    $('recordBtn').textContent='开始绘画';
-  }
-};
 
 function stopPlayback(){
   if(playbackTimer){
@@ -611,16 +629,10 @@ function playRecorded(){
 
 $('playBtn').onclick=playRecorded;
 
-$('stopBtn').onclick=()=>{
-  stopPlayback();
-  recording=false;
-  $('recordBtn').textContent='开始绘画';
-};
-
 $('clearBtn').onclick=()=>{
   stopPlayback();
   points=[];notes=[];lastTriggers={};
-  recording=false;recordStart=0;
+  recordStart=0;
   $('count').textContent=0;
   $('current').textContent='—';
   $('duration').textContent='0s';
